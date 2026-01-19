@@ -1,0 +1,663 @@
+{
+  "aspects": [
+    {
+      "name": "Zoom Meetings",
+      "description": "The core video conferencing service for real-time collaboration and communication within the Zoom Workplace ecosystem. It enables users to host and join virtual meetings with HD video and audio, share content, and use various interactive tools to facilitate communication and productivity for teams of any size.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Overall Satisfaction with Zoom Meetings",
+          "category": "praise",
+          "sub_themes": [
+            { "name": "Praise for Ease of Use", "category": "praise" },
+            { "name": "Appreciation of Versatility Across Use Cases", "category": "praise" }
+          ]
+        },
+        {
+          "name": "Frustration with Zoom Meetings Reliability",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Lag & Connectivity Issues", "category": "complaint" },
+            { "name": "Crashes & App Stability Problems", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Confusion Navigating Zoom Meetings Interface",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Unintuitive Interface Layout", "category": "complaint" },
+            { "name": "Difficulty Finding Basic Features", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Perception That Zoom Meetings Lack Modern Features",
+          "category": "improvement",
+          "sub_themes": [
+            { "name": "Want More Customization & Integrations", "category": "improvement" },
+            { "name": "Need Additional Collaboration Tools", "category": "improvement" }
+          ]
+        },
+        {
+          "name": "Frequent Requests for Guidance on Using Zoom Meetings",
+          "category": "question",
+          "sub_themes": [
+            { "name": "Requests for Step-By-Step Guides", "category": "question" },
+            { "name": "Need Clarification of Zoom Messages", "category": "question" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Zoom Team Chat",
+      "description": "A persistent messaging platform integrated within Zoom that enables teams to communicate asynchronously. It provides direct messaging, group channels, and the ability to share files, making it a central hub for team collaboration outside of meetings.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Overall Appreciation for Zoom Team Chat",
+          "category": "praise",
+          "sub_themes": []
+        },
+        {
+          "name": "Frustration with Team Chat Notifications",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Too Many Notifications", "category": "complaint" },
+            { "name": "Missed Important Messages", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Zoom Phone",
+      "description": "A cloud-based phone system that replaces traditional PBX systems. It offers enterprise-grade voice services including inbound/outbound calling, voicemail, call recording, and integrations with the broader Zoom platform for a unified communications experience.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Overall Satisfaction with Zoom Phone",
+          "category": "praise",
+          "sub_themes": []
+        },
+        {
+          "name": "Call Quality Issues",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Dropped Calls", "category": "complaint" },
+            { "name": "Audio Quality Problems", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Zoom Webinars",
+      "description": "A platform for hosting large-scale, broadcast-style virtual events. Webinars allow a few speakers to present to a large audience with features like registration, Q&A, polling, and analytics, designed for one-to-many communication.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Appreciation for Webinar Features",
+          "category": "praise",
+          "sub_themes": [
+            { "name": "Easy Audience Management", "category": "praise" },
+            { "name": "Reliable Large-Scale Broadcasting", "category": "praise" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Zoom Events",
+      "description": "An all-in-one solution for hosting multi-session, multi-day virtual and hybrid events. It extends Webinars with capabilities like event hubs, expo floors, networking lounges, and ticketing to create comprehensive event experiences.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Whiteboard",
+      "description": "A digital canvas for visual collaboration that can be used during or outside of meetings. It provides tools for drawing, adding sticky notes, and brainstorming, enabling teams to ideate and capture information visually.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Rooms",
+      "description": "A software-based room system that transforms physical meeting spaces into Zoom-enabled rooms. It provides a seamless experience for joining meetings from conference rooms with one-touch to join, wireless content sharing, and room controls.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Contact Center",
+      "description": "An omnichannel cloud contact center solution that enables businesses to provide customer support across voice, video, chat, and SMS channels. It includes intelligent routing, agent management, and AI-powered tools to enhance customer service operations.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Revenue Accelerator",
+      "description": "A conversation intelligence solution that uses AI to analyze sales calls and meetings. It provides insights, coaching recommendations, and deal tracking to help sales teams improve performance and close deals faster.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Scheduler",
+      "description": "A scheduling tool that allows users to share their availability and let others book time with them. It integrates with calendars and Zoom Meetings to streamline the process of setting up appointments and eliminating scheduling conflicts.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Docs",
+      "description": "A collaborative document creation tool that allows teams to create, edit, and share documents in real-time. It integrates with Zoom Meetings and AI features to enhance productivity and knowledge management.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Clips",
+      "description": "A short-form video messaging tool that allows users to record and share video messages asynchronously. It enables screen and camera recording with editing capabilities for quick communication without scheduling a meeting.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Zoom Tasks",
+      "description": "A task management feature integrated within Zoom that helps users track action items and to-dos. It connects with meetings and chat to capture and organize tasks for better productivity.",
+      "level": "L1",
+      "themes": []
+    },
+    {
+      "name": "Account Administration",
+      "description": "Tools and settings for managing a Zoom account at the organizational level. This includes user management, security settings, billing, and compliance features for IT administrators.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Account Administration Interface Feels Unintuitive",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Confusing Account Setup Process", "category": "complaint" },
+            { "name": "Hard to Find Admin Settings", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Platform & Integrations",
+      "description": "The ecosystem of third-party apps, APIs, and integrations that extend Zoom's functionality. This includes the Zoom App Marketplace and developer tools for building custom integrations.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Need Stronger Platform & Integrations Ecosystem",
+          "category": "improvement",
+          "sub_themes": [
+            { "name": "Desire for Wider Third-Party Integrations", "category": "improvement" },
+            { "name": "Better API Documentation Needed", "category": "improvement" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Usability",
+      "description": "Cross-cutting concerns related to the overall user experience of Zoom products. This covers general ease of use, interface design, accessibility, and user onboarding across all Zoom applications.",
+      "level": "L1",
+      "themes": [
+        {
+          "name": "Praise for Zoom's Easy Usability",
+          "category": "praise",
+          "sub_themes": []
+        },
+        {
+          "name": "Complaints About UI Complexity",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Too Many Options", "category": "complaint" },
+            { "name": "Inconsistent Design", "category": "complaint" }
+          ]
+        }
+      ]
+    }
+  ],
+  "l2_aspects": [
+    {
+      "name": "Scheduling & Joining",
+      "description": "Features related to creating, managing, and accessing meetings. This area covers everything from setting up a one-time call to managing complex recurring meetings with registration, ensuring a seamless start to any collaborative session.",
+      "parent": "Zoom Meetings",
+      "themes": [
+        {
+          "name": "Confusion Navigating Scheduling & Joining",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Unclear Join Process", "category": "complaint" },
+            { "name": "Unclear Scheduling Setup", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Appreciation for Easy Scheduling & Joining",
+          "category": "praise",
+          "sub_themes": [
+            { "name": "Smooth Meeting Access", "category": "praise" },
+            { "name": "Simple Scheduling Experience", "category": "praise" }
+          ]
+        },
+        {
+          "name": "Join Reliability Failures",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Error Messages Prevent Access", "category": "complaint" },
+            { "name": "Link Click Does Nothing", "category": "complaint" },
+            { "name": "Long Loading or Timeouts", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Inconsistent Meeting Links & Sync",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Links Expire or Incorrect", "category": "complaint" },
+            { "name": "Calendar Integration Gaps", "category": "complaint" },
+            { "name": "Meeting Time Mismatch", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "In-Meeting Experience",
+      "description": "Features and interactions that occur during a live meeting session. This encompasses all the tools participants use to communicate, collaborate, and engage, from video and audio controls to chat and interactive features.",
+      "parent": "Zoom Meetings",
+      "themes": [
+        {
+          "name": "Appreciation for Smooth In-Meeting Experience",
+          "category": "praise",
+          "sub_themes": [
+            { "name": "Clear Audio and Video Quality", "category": "praise" },
+            { "name": "Easy to Use Meeting Controls", "category": "praise" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Audio Management",
+      "description": "Capabilities related to audio quality, control, and enhancement, ensuring participants can be heard clearly.",
+      "parent": "Zoom Meetings",
+      "themes": [
+        {
+          "name": "Frustration with Unreliable Audio Quality",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Echo and Feedback Issues", "category": "complaint" },
+            { "name": "Audio Cutting Out", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Video Management",
+      "description": "Capabilities related to video quality, control, and enhancement, ensuring that participants can be seen clearly and customize their appearance.",
+      "parent": "Zoom Meetings",
+      "themes": [
+        {
+          "name": "Frustration with Video Quality Issues",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Blurry or Pixelated Video", "category": "complaint" },
+            { "name": "Video Freezing During Calls", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recording & Transcription",
+      "description": "Features for capturing meeting content for later review. This includes local and cloud recording options, as well as AI-powered transcription and smart chapter features.",
+      "parent": "Zoom Meetings",
+      "themes": [
+        {
+          "name": "Issues with Recording Features",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Recording Failed to Start", "category": "complaint" },
+            { "name": "Transcription Accuracy Problems", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Channels & Groups",
+      "description": "Organizational structures within Team Chat for grouping conversations by topic, project, or team. Channels can be public or private and support threaded conversations.",
+      "parent": "Zoom Team Chat",
+      "themes": [
+        {
+          "name": "Channel Organization Challenges",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Too Many Channels to Track", "category": "complaint" },
+            { "name": "Confusing Channel Permissions", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Direct Messaging",
+      "description": "One-on-one or small group private conversations within Team Chat. Direct messages provide a quick way to communicate with specific individuals without creating a channel.",
+      "parent": "Zoom Team Chat",
+      "themes": []
+    },
+    {
+      "name": "File Sharing",
+      "description": "The ability to share files, images, and documents within Team Chat conversations. This includes previewing files and integrations with cloud storage services.",
+      "parent": "Zoom Team Chat",
+      "themes": []
+    },
+    {
+      "name": "Call Management",
+      "description": "Features for handling inbound and outbound calls, including call transfer, hold, park, and forwarding. This area covers the day-to-day operations of using Zoom Phone.",
+      "parent": "Zoom Phone",
+      "themes": [
+        {
+          "name": "Call Transfer Issues",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Failed Call Transfers", "category": "complaint" },
+            { "name": "Confusing Transfer Process", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Voicemail & Messages",
+      "description": "Features for receiving, managing, and responding to voicemail messages. This includes voicemail transcription and notification settings.",
+      "parent": "Zoom Phone",
+      "themes": []
+    },
+    {
+      "name": "Webinar Setup",
+      "description": "Tools for configuring and customizing webinar settings before the event. This includes registration, branding, and panelist management.",
+      "parent": "Zoom Webinars",
+      "themes": []
+    },
+    {
+      "name": "Audience Engagement",
+      "description": "Interactive features that allow hosts to engage with webinar attendees, including Q&A, polling, and chat functionality.",
+      "parent": "Zoom Webinars",
+      "themes": []
+    },
+    {
+      "name": "Event Setup & Configuration",
+      "description": "Tools for building and customizing the entire event experience from the ground up. This includes creating the event hub, designing the schedule, and setting up ticketing and registration for attendees.",
+      "parent": "Zoom Events",
+      "themes": []
+    },
+    {
+      "name": "Canvas & Content Tools",
+      "description": "The core set of tools for adding and manipulating content on the whiteboard. These are the fundamental building blocks that users interact with to visualize ideas and structure information.",
+      "parent": "Zoom Whiteboard",
+      "themes": [
+        {
+          "name": "Canvas Tool Limitations",
+          "category": "improvement",
+          "sub_themes": [
+            { "name": "Need More Shape Options", "category": "improvement" },
+            { "name": "Better Text Formatting", "category": "improvement" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Room System & Hardware",
+      "description": "The core components and certified hardware that make up a Zoom Room, including displays, controllers, cameras, and audio devices.",
+      "parent": "Zoom Rooms",
+      "themes": []
+    },
+    {
+      "name": "Omnichannel Engagement",
+      "description": "Support for various communication channels including voice, video, chat, and SMS, allowing agents to interact with customers on their preferred platform.",
+      "parent": "Zoom Contact Center",
+      "themes": []
+    },
+    {
+      "name": "Conversation Analysis",
+      "description": "AI-powered tools to review and analyze recorded conversations from Zoom Meetings and Phone.",
+      "parent": "Revenue Accelerator",
+      "themes": []
+    },
+    {
+      "name": "Booking Schedules",
+      "description": "The core functionality for creating different types of schedulable appointment slots. This area covers the various configurations hosts can use to offer their availability to others for different scenarios, from one-on-one meetings to group sessions.",
+      "parent": "Zoom Scheduler",
+      "themes": [
+        {
+          "name": "Schedule Configuration Challenges",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Complex Availability Settings", "category": "complaint" },
+            { "name": "Buffer Time Issues", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Document Creation & Editing",
+      "description": "The core features for creating and formatting content within a Zoom Doc. This includes a rich text editor and the ability to embed various types of media and structural elements to build dynamic documents.",
+      "parent": "Zoom Docs",
+      "themes": []
+    },
+    {
+      "name": "Clip Creation & Editing",
+      "description": "The end-to-end workflow for producing a video clip. This includes recording the screen and/or camera, making basic edits, and preparing the clip for sharing.",
+      "parent": "Zoom Clips",
+      "themes": []
+    },
+    {
+      "name": "Task Management",
+      "description": "Core features for creating, organizing, and tracking tasks. This area covers the tools users interact with to manage their personal and team to-do lists.",
+      "parent": "Zoom Tasks",
+      "themes": []
+    },
+    {
+      "name": "Cross-Product Integration",
+      "description": "Features that enable seamless workflows and data sharing between different Zoom products.",
+      "parent": "Platform & Integrations",
+      "themes": [
+        {
+          "name": "Integration Sync Issues",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Calendar Sync Failures", "category": "complaint" },
+            { "name": "Data Not Syncing Between Apps", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "description": "Tools for adding, removing, and managing users within a Zoom account. This includes role assignment, group management, and user provisioning.",
+      "parent": "Account Administration",
+      "themes": []
+    },
+    {
+      "name": "Security & Compliance",
+      "description": "Settings and features related to account security, data protection, and regulatory compliance requirements.",
+      "parent": "Account Administration",
+      "themes": []
+    }
+  ],
+  "l3_aspects": [
+    {
+      "name": "Schedule a Meeting",
+      "description": "The fundamental capability to set up a future Zoom meeting. This includes defining the meeting topic, date, time, and duration, as well as configuring basic security and participant settings before the meeting starts.",
+      "parent": "Scheduling & Joining",
+      "themes": [
+        {
+          "name": "Scheduling Blocked by Error Messages",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Server or Network Errors Prevent Scheduling", "category": "complaint" },
+            { "name": "Invalid Meeting ID During Scheduling", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Struggle to Locate Schedule Option",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Cannot Find Schedule Button on Mobile Home Screen", "category": "complaint" },
+            { "name": "Confusion Navigating Scheduling Interface", "category": "complaint" }
+          ]
+        },
+        {
+          "name": "Need Help Setting Up Recurring Meetings",
+          "category": "question",
+          "sub_themes": [
+            { "name": "Guidance Needed on Recurrence Settings", "category": "question" },
+            { "name": "Recurring Meeting Option Missing on Mobile", "category": "question" }
+          ]
+        },
+        {
+          "name": "Difficulty Scheduling Across Time Zones",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Time Zone Display Errors", "category": "complaint" },
+            { "name": "Confusion Converting Meeting Times", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Personal Meeting ID (PMI)",
+      "description": "A static, personal meeting room that is always available. Users can customize their PMI for a permanent, easy-to-remember link, ideal for recurring or ad-hoc meetings without needing to schedule a new one each time.",
+      "parent": "Scheduling & Joining",
+      "themes": [
+        {
+          "name": "Confusion About PMI vs Unique Meeting ID",
+          "category": "question",
+          "sub_themes": [
+            { "name": "When to Use PMI vs New Meeting", "category": "question" },
+            { "name": "Security Concerns with Static PMI", "category": "question" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Alternative Host",
+      "description": "The ability to designate another licensed user to start and manage a scheduled meeting if the original host is unavailable.",
+      "parent": "Scheduling & Joining",
+      "themes": [
+        {
+          "name": "Difficulty Assigning Alternative Host",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Cannot Find Alternative Host Option", "category": "complaint" },
+            { "name": "Permission Issues for Alternative Hosts", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Join via Link",
+      "description": "The process of joining a Zoom meeting by clicking on a meeting link or entering a meeting ID.",
+      "parent": "Scheduling & Joining",
+      "themes": []
+    },
+    {
+      "name": "Meeting Registration",
+      "description": "A feature that requires attendees to register before joining a meeting, allowing hosts to collect information and manage attendance.",
+      "parent": "Scheduling & Joining",
+      "themes": [
+        {
+          "name": "Annoyance at Repeated Registration Prompts",
+          "category": "complaint",
+          "sub_themes": []
+        }
+      ]
+    },
+    {
+      "name": "Host & Co-Host Controls",
+      "description": "The set of permissions and tools available to the meeting host and co-host(s). These controls include managing participants, starting/stopping recordings, and controlling the overall flow of the meeting.",
+      "parent": "In-Meeting Experience",
+      "themes": []
+    },
+    {
+      "name": "Participant Management",
+      "description": "Tools for viewing and managing the list of meeting attendees. Hosts can mute/unmute individuals or all participants, manage video feeds, rename attendees, and control who can enter the meeting.",
+      "parent": "In-Meeting Experience",
+      "themes": []
+    },
+    {
+      "name": "Breakout Rooms",
+      "description": "A feature that allows the host to split a meeting into smaller, separate sessions. This is ideal for small group discussions, workshops, and training, with the ability to assign participants automatically or manually.",
+      "parent": "In-Meeting Experience",
+      "themes": [
+        {
+          "name": "Frustration Setting Up Breakout Rooms",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Confusing Room Assignment Interface", "category": "complaint" },
+            { "name": "Participants Not Moving to Rooms", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "In-Meeting Chat",
+      "description": "A text-based communication channel available during a meeting. Participants can send messages to everyone, to the host privately, or to other individuals.",
+      "parent": "In-Meeting Experience",
+      "themes": []
+    },
+    {
+      "name": "Polling & Quizzing",
+      "description": "Interactive tools that allow the host to launch single-choice or multiple-choice questions during a meeting or webinar.",
+      "parent": "In-Meeting Experience",
+      "themes": []
+    },
+    {
+      "name": "AI Meeting Summary",
+      "description": "An AI-generated summary of a meeting recording. It automatically identifies key topics, discussion points, and action items.",
+      "parent": "In-Meeting Experience",
+      "themes": []
+    },
+    {
+      "name": "Audio Enhancement",
+      "description": "A collection of settings to improve a user's audio quality, such as background noise suppression.",
+      "parent": "Audio Management",
+      "themes": []
+    },
+    {
+      "name": "Join by Phone",
+      "description": "The option for participants to dial into a meeting's audio using a standard telephone. This is a critical fallback for users with poor internet connectivity.",
+      "parent": "Audio Management",
+      "themes": []
+    },
+    {
+      "name": "HD Video",
+      "description": "The capability to transmit and receive video in high definition (720p or 1080p). This provides a clearer, more lifelike visual experience.",
+      "parent": "Video Management",
+      "themes": []
+    },
+    {
+      "name": "Virtual Backgrounds",
+      "description": "A feature that allows users to display an image or video as their background during a meeting. This provides privacy and a more professional appearance.",
+      "parent": "Video Management",
+      "themes": [
+        {
+          "name": "Virtual Background Not Working Properly",
+          "category": "complaint",
+          "sub_themes": [
+            { "name": "Background Flickering", "category": "complaint" },
+            { "name": "Green Screen Required", "category": "complaint" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gallery View",
+      "description": "A video layout that displays multiple participants in a grid format, allowing users to see everyone in the meeting at once.",
+      "parent": "Video Management",
+      "themes": []
+    },
+    {
+      "name": "Cloud Recording",
+      "description": "The ability to record meetings directly to Zoom's cloud storage, making recordings accessible from anywhere and easy to share.",
+      "parent": "Recording & Transcription",
+      "themes": []
+    },
+    {
+      "name": "Local Recording",
+      "description": "The ability to record meetings to a local device, providing more control over storage and privacy.",
+      "parent": "Recording & Transcription",
+      "themes": []
+    },
+    {
+      "name": "Meeting Transcript",
+      "description": "An AI-generated text transcript of the meeting audio, useful for accessibility and searchability.",
+      "parent": "Recording & Transcription",
+      "themes": []
+    }
+  ]
+}
