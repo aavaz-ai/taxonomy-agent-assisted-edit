@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { FileText, Minus, Filter, ArrowUpDown, Check } from "lucide-react"
 import { useTaxonomy, type SortType } from "@/lib/taxonomy-context"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
 
 interface TaxonomyColumnProps {
   title: string
@@ -44,7 +45,7 @@ export function TaxonomyColumn({
   isEditMode = false,
   changedNodeIds = [],
 }: TaxonomyColumnProps) {
-  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3 } = useTaxonomy()
+  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, setIsAgentOverlayOpen, openAgentOverlay } = useTaxonomy()
 
   const currentSort = level === 1 ? sortL1 : level === 2 ? sortL2 : sortL3
   const setSort = level === 1 ? setSortL1 : level === 2 ? setSortL2 : setSortL3
@@ -138,7 +139,24 @@ export function TaxonomyColumn({
 
         {/* Add keyword button in edit mode */}
         {isEditMode && (
-          <div className="flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2 cursor-pointer hover:bg-muted/50">
+          <div
+            className="flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2 cursor-pointer hover:bg-muted/50"
+            onClick={() => {
+              // Create a placeholder node for adding new keywords
+              const placeholderNode: TaxonomyNode = {
+                id: `new-${level}`,
+                name: `New L${level} Keyword`,
+                count: 0,
+                description: "",
+              }
+              const nodeLevel = `L${level}` as "L1" | "L2" | "L3"
+              const operationType: TaxonomyOperationType = level === 3 ? "create-subtheme" : "create-theme"
+              const wisdomContext: Partial<WisdomPromptContext> = {
+                proposedName: `New L${level} Keyword`,
+              }
+              openAgentOverlay(placeholderNode, nodeLevel, operationType, wisdomContext)
+            }}
+          >
             <span>+ Add L{level} Keyword</span>
           </div>
         )}

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
 import { sampleTaxonomyData, type TaxonomyData, type TaxonomyNode } from "./taxonomy-data"
+import { type TaxonomyOperationType, type WisdomPromptContext } from "./wisdom-prompts"
 
 export interface DraftChange {
   id: string
@@ -12,6 +13,24 @@ export interface DraftChange {
   oldValue: string
   newValue: string
   timestamp: Date
+}
+
+export interface AgentDiffItem {
+  type: "added" | "modified" | "deleted" | "moved"
+  nodeType: "L1" | "L2" | "L3" | "Theme"
+  nodeName: string
+  field?: string
+  oldValue?: string
+  newValue?: string
+  path?: string
+  movedTo?: string
+}
+
+export interface AgentContext {
+  selectedNode: TaxonomyNode | null
+  nodeLevel: "L1" | "L2" | "L3" | null
+  operationType: TaxonomyOperationType
+  wisdomContext: WisdomPromptContext
 }
 
 export type SortType = "name-asc" | "name-desc" | "count-asc" | "count-desc"
@@ -63,6 +82,18 @@ interface TaxonomyContextType {
   setSortL1: (sort: SortType) => void
   setSortL2: (sort: SortType) => void
   setSortL3: (sort: SortType) => void
+
+  // Agent overlay
+  isAgentOverlayOpen: boolean
+  setIsAgentOverlayOpen: (open: boolean) => void
+  agentContext: AgentContext | null
+  openAgentOverlay: (
+    node: TaxonomyNode,
+    level: "L1" | "L2" | "L3",
+    operationType: TaxonomyOperationType,
+    wisdomContext?: Partial<WisdomPromptContext>
+  ) => void
+  applyAgentChanges: (diff: AgentDiffItem[]) => void
 }
 
 const TaxonomyContext = createContext<TaxonomyContextType | undefined>(undefined)
@@ -132,6 +163,10 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const [sortL1, setSortL1] = useState<SortType>("count-desc")
   const [sortL2, setSortL2] = useState<SortType>("count-desc")
   const [sortL3, setSortL3] = useState<SortType>("count-desc")
+
+  // Agent overlay state
+  const [isAgentOverlayOpen, setIsAgentOverlayOpen] = useState(false)
+  const [agentContext, setAgentContext] = useState<AgentContext | null>(null)
 
   // When L1 changes, reset L2 and L3
   const setSelectedL1Id = useCallback((id: string | null) => {
@@ -241,6 +276,79 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setProcessingEstimate("2-3 hours")
   }, [draftChanges])
 
+  // Agent overlay functions
+  const openAgentOverlay = useCallback(
+    (
+      node: TaxonomyNode,
+      level: "L1" | "L2" | "L3",
+      operationType: TaxonomyOperationType,
+      wisdomContext?: Partial<WisdomPromptContext>
+    ) => {
+      // Build full wisdom context from node and provided context
+      const fullWisdomContext: WisdomPromptContext = {
+        currentName: node.name,
+        l3Name: level === "L3" ? node.name : undefined,
+        themeName: level === "L3" ? undefined : node.name,
+        subThemeName: undefined, // Will be set by caller if applicable
+        ...wisdomContext,
+      }
+
+      setAgentContext({
+        selectedNode: node,
+        nodeLevel: level,
+        operationType,
+        wisdomContext: fullWisdomContext,
+      })
+      setIsAgentOverlayOpen(true)
+    },
+    []
+  )
+
+  const applyAgentChanges = useCallback((diff: AgentDiffItem[]) => {
+    // Convert agent diff items to draft changes
+    diff.forEach((item) => {
+      if (item.type === "deleted") {
+        addDraftChange({
+          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeName: item.nodeName,
+          nodeLevel: item.nodeType,
+          field: "delete-keyword",
+          oldValue: item.nodeName,
+          newValue: "[DELETED]",
+        })
+      } else if (item.type === "modified" && item.field) {
+        addDraftChange({
+          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeName: item.nodeName,
+          nodeLevel: item.nodeType,
+          field: item.field,
+          oldValue: item.oldValue || "",
+          newValue: item.newValue || "",
+        })
+      } else if (item.type === "added") {
+        addDraftChange({
+          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeName: item.nodeName,
+          nodeLevel: item.nodeType,
+          field: "add-keyword",
+          oldValue: "",
+          newValue: item.nodeName,
+        })
+      } else if (item.type === "moved") {
+        addDraftChange({
+          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeName: item.nodeName,
+          nodeLevel: item.nodeType,
+          field: "move-keyword",
+          oldValue: item.path || "",
+          newValue: item.movedTo || "",
+        })
+      }
+    })
+    setIsAgentOverlayOpen(false)
+    setAgentContext(null)
+  }, [addDraftChange])
+
   return (
     <TaxonomyContext.Provider
       value={{
@@ -275,6 +383,11 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSortL1,
         setSortL2,
         setSortL3,
+        isAgentOverlayOpen,
+        setIsAgentOverlayOpen,
+        agentContext,
+        openAgentOverlay,
+        applyAgentChanges,
       }}
     >
       {children}
