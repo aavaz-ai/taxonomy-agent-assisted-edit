@@ -3,8 +3,11 @@
 import { useState, useEffect } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
-import { X, ChevronUp, ChevronDown, Layers } from "lucide-react"
+import { ChevronUp, ChevronDown, Layers, CheckCircle2, AlertTriangle } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { ChangeDiffBlock } from "./change-diff-block"
+import { AgentAnalysisPanel } from "./agent-analysis-panel"
+import { HighRiskReviewCard } from "./high-risk-review-card"
 
 export function BottomBar() {
   const {
@@ -16,6 +19,13 @@ export function BottomBar() {
     setIsBottomBarExpanded,
     setIsConfirmModalOpen,
     removeDraftChange,
+    selectedChangeId,
+    setSelectedChangeId,
+    analysisStats,
+    highRiskReview,
+    acceptHighRiskReview,
+    rejectHighRiskReview,
+    acceptDraftChange,
   } = useTaxonomy()
 
   const [shouldRender, setShouldRender] = useState(false)
@@ -34,6 +44,13 @@ export function BottomBar() {
     }
   }, [isClosing])
 
+  // Auto-expand when high-risk review starts
+  useEffect(() => {
+    if (highRiskReview) {
+      setIsBottomBarExpanded(true)
+    }
+  }, [highRiskReview, setIsBottomBarExpanded])
+
   const handleDiscard = () => {
     discardAllChanges()
     setIsEditMode(false)
@@ -45,6 +62,9 @@ export function BottomBar() {
 
   const handleUndo = (changeId: string) => {
     removeDraftChange(changeId)
+    if (selectedChangeId === changeId) {
+      setSelectedChangeId(null)
+    }
   }
 
   // Group changes by nodeId for display
@@ -63,6 +83,20 @@ export function BottomBar() {
     {} as Record<string, { nodeName: string; nodeLevel: string; changes: typeof draftChanges }>,
   )
 
+  // Find selected change for right panel
+  const selectedChange = selectedChangeId
+    ? draftChanges.find((c) => c.id === selectedChangeId)
+    : null
+
+  // Determine if right panel should show
+  const showRightPanel = isBottomBarExpanded && (selectedChange || highRiskReview)
+
+  // Status summary for B1 header
+  const totalApproved = analysisStats.pass
+  const totalNeedsReview = analysisStats.warn + analysisStats.fail
+  const totalPending = analysisStats.pending
+  const hasStatusInfo = draftChanges.length > 0 && draftChanges.some((c) => c.agentAnalysis)
+
   if (!shouldRender) return null
 
   return (
@@ -76,17 +110,48 @@ export function BottomBar() {
             ? 'animate-[slideDown_250ms_var(--ease-spring)_forwards]'
             : 'animate-[slideUp_250ms_var(--ease-spring)]'
         }`}>
-        {/* Header row - always visible */}
+        {/* B1 Header row */}
         <div
           className="px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
           onClick={() => setIsBottomBarExpanded(!isBottomBarExpanded)}
         >
           <div className="flex items-center gap-3">
             <Layers className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Draft changes</span>
-            {draftChanges.length > 0 && (
-              <span className="bg-[#2D7A7A] text-white text-xs font-medium px-2 py-0.5 rounded">
-                {draftChanges.length} {draftChanges.length === 1 ? "change" : "changes"}
+            <div className="flex flex-col">
+              {draftChanges.length > 0 && (
+                <span className="text-sm font-medium text-foreground">
+                  {draftChanges.length} {draftChanges.length === 1 ? "change" : "changes"}
+                </span>
+              )}
+              {/* B1 status summary line */}
+              {hasStatusInfo && (
+                <div className="flex items-center gap-3 mt-0.5">
+                  {totalApproved > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-green-600">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {totalApproved} approved
+                    </span>
+                  )}
+                  {totalNeedsReview > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-amber-600">
+                      <AlertTriangle className="w-3 h-3" />
+                      {totalNeedsReview} needs review
+                    </span>
+                  )}
+                  {totalPending > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {totalPending} analyzing...
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* High risk indicator */}
+            {highRiskReview && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Review required
               </span>
             )}
           </div>
@@ -101,7 +166,6 @@ export function BottomBar() {
               }}
               className="text-muted-foreground"
             >
-              <X className="w-4 h-4 mr-1" />
               Discard all
             </Button>
 
@@ -112,6 +176,7 @@ export function BottomBar() {
                 handleSaveChanges()
               }}
               className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
+              disabled={highRiskReview !== null}
             >
               Save changes
             </Button>
@@ -125,23 +190,83 @@ export function BottomBar() {
           </div>
         </div>
 
-        {/* Expanded content - animated with CSS grid */}
+        {/* Expanded content - split panel */}
         <div
           className="grid transition-[grid-template-rows] duration-300 ease-spring"
           style={{ gridTemplateRows: isBottomBarExpanded ? '1fr' : '0fr' }}
         >
           <div className="overflow-hidden">
-            <div className="border-t border-border px-6 py-4 overflow-y-auto max-h-[33vh]">
-              {Object.entries(groupedChanges).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No changes yet</p>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(groupedChanges).map(([nodeId, group]) => (
-                    <ChangeDiffBlock key={nodeId} group={group} onUndo={handleUndo} />
-                  ))}
-                </div>
-              )}
+            <div className="border-t border-border flex h-[50vh]">
+              {/* Left panel (B2): Change list */}
+              <div className={cn(
+                "overflow-y-auto px-4 py-3 transition-all duration-300 shrink-0",
+                showRightPanel ? "w-1/3 border-r border-border" : "w-full"
+              )}>
+                {Object.entries(groupedChanges).length === 0 && !highRiskReview ? (
+                  <p className="text-sm text-muted-foreground py-2">No changes yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {/* High-risk pending review at top */}
+                    {highRiskReview && (
+                      <div
+                        className={cn(
+                          "rounded-lg border-2 border-amber-400 bg-amber-50/60 px-3 py-2 cursor-pointer",
+                          !selectedChangeId && "ring-2 ring-amber-400/40"
+                        )}
+                        onClick={() => setSelectedChangeId(null)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span className="text-xs text-amber-800 font-medium">Pending review</span>
+                        </div>
+                        <p className="text-xs text-amber-700 mt-1 truncate">
+                          {highRiskReview.operationDescription}
+                        </p>
+                      </div>
+                    )}
+
+                    {Object.entries(groupedChanges).map(([nodeId, group]) => {
+                      const firstChangeId = group.changes[0]?.id
+                      return (
+                        <ChangeDiffBlock
+                          key={nodeId}
+                          group={group}
+                          onUndo={handleUndo}
+                          isSelected={selectedChangeId === firstChangeId}
+                          onClick={() => setSelectedChangeId(
+                            selectedChangeId === firstChangeId ? null : firstChangeId || null
+                          )}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right panel (B3): Agent analysis or high-risk review */}
+              <div className={cn(
+                "bg-muted/5 transition-all duration-300 overflow-hidden",
+                showRightPanel ? "w-2/3" : "w-0"
+              )}>
+                {highRiskReview && !selectedChangeId ? (
+                  <HighRiskReviewCard
+                    review={highRiskReview}
+                    onAccept={acceptHighRiskReview}
+                    onReject={rejectHighRiskReview}
+                  />
+                ) : selectedChange ? (
+                  <AgentAnalysisPanel
+                    change={selectedChange}
+                    onDismiss={() => setSelectedChangeId(null)}
+                    onAccept={() => {
+                      acceptDraftChange(selectedChange.id)
+                      setSelectedChangeId(null)
+                    }}
+                  />
+                ) : null}
+              </div>
             </div>
+
           </div>
         </div>
         </div>

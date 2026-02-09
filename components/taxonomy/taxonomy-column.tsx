@@ -6,6 +6,7 @@ import { FileText, Minus, Filter, ArrowUpDown, Check } from "lucide-react"
 import { useTaxonomy, type SortType, type DraftChange } from "@/lib/taxonomy-context"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
+import { isHighRisk } from "@/lib/agent-utils"
 
 interface TaxonomyColumnProps {
   title: string
@@ -45,7 +46,7 @@ export function TaxonomyColumn({
   isEditMode = false,
   draftChanges = [],
 }: TaxonomyColumnProps) {
-  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, setIsAgentOverlayOpen, openAgentOverlay } = useTaxonomy()
+  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, addDraftChangeWithAnalysis, initiateHighRiskReview } = useTaxonomy()
 
   const currentSort = level === 1 ? sortL1 : level === 2 ? sortL2 : sortL3
   const setSort = level === 1 ? setSortL1 : level === 2 ? setSortL2 : setSortL3
@@ -73,6 +74,30 @@ export function TaxonomyColumn({
         return "Count (High to Low)"
       case "count-asc":
         return "Count (Low to High)"
+    }
+  }
+
+  // Get analysis status color for node name
+  const getNodeNameColor = (node: TaxonomyNode) => {
+    const nodeChanges = draftChanges.filter((c) => c.nodeName === node.name)
+    if (nodeChanges.length === 0) return null
+
+    const firstAnalysis = nodeChanges[0]?.agentAnalysis
+    if (!firstAnalysis) return null
+
+    switch (firstAnalysis.status) {
+      case "analyzing":
+      case "pending":
+        return "text-blue-600" // info: pending/analyzing
+      case "pass":
+        return "text-green-600" // success: pass
+      case "warn":
+      case "fail":
+        return "text-amber-600" // warning: needs review
+      case "error":
+        return "text-red-500"
+      default:
+        return null
     }
   }
 
@@ -117,6 +142,7 @@ export function TaxonomyColumn({
           const hasChanges = nodeChanges.length > 0
           const nameChange = nodeChanges.find((c) => c.field === "name")
           const displayName = nameChange ? nameChange.newValue : node.name
+          const analysisColor = getNodeNameColor(node)
 
           return (
             <div
@@ -128,7 +154,11 @@ export function TaxonomyColumn({
                 hasChanges && "border border-dashed border-[#2D7A7A]/40 rounded mx-2 border-l-2",
               )}
             >
-              <span className={cn("text-sm truncate pr-2", selectedId === node.id && "font-medium text-[#2D7A7A]")}>
+              <span className={cn(
+                "text-sm truncate pr-2",
+                selectedId === node.id && "font-medium",
+                analysisColor || (selectedId === node.id ? "text-[#2D7A7A]" : ""),
+              )}>
                 {displayName}
               </span>
               <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
@@ -144,7 +174,6 @@ export function TaxonomyColumn({
           <div
             className="flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2 cursor-pointer hover:bg-muted/50"
             onClick={() => {
-              // Create a placeholder node for adding new keywords
               const placeholderNode: TaxonomyNode = {
                 id: `new-${level}`,
                 name: `New L${level} Keyword`,
@@ -156,7 +185,11 @@ export function TaxonomyColumn({
               const wisdomContext: Partial<WisdomPromptContext> = {
                 proposedName: `New L${level} Keyword`,
               }
-              openAgentOverlay(placeholderNode, nodeLevel, operationType, wisdomContext)
+              if (isHighRisk(operationType)) {
+                initiateHighRiskReview(placeholderNode, nodeLevel, operationType, wisdomContext)
+              } else {
+                addDraftChangeWithAnalysis(placeholderNode, nodeLevel, operationType, wisdomContext)
+              }
             }}
           >
             <span>+ Add L{level} Keyword</span>
