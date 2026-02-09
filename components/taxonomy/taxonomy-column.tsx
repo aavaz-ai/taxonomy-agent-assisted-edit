@@ -81,8 +81,7 @@ export function TaxonomyColumn({
       {/* Column Header */}
       <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground border-b border-border">
         {getLevelIcon()}
-        <span className="font-medium">{title}</span>
-        <span className="text-muted-foreground">{count}</span>
+        <span className="font-medium">{title} ({count})</span>
 
         <div className="ml-auto">
           <DropdownMenu>

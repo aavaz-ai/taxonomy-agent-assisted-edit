@@ -416,7 +416,7 @@ export function AgentOverlay() {
       {/* Backdrop - subtle, click to close */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-300",
+          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-300 ease-spring",
           isAgentOverlayOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={handleClose}
@@ -425,7 +425,7 @@ export function AgentOverlay() {
       {/* Slide-in Drawer */}
       <div
         className={cn(
-          "fixed top-0 right-0 z-50 h-full w-[420px] bg-background border-l border-border shadow-2xl flex flex-col transition-transform duration-300 ease-out",
+          "fixed top-0 right-0 z-50 h-full w-[420px] bg-background border-l border-border shadow-2xl flex flex-col transition-transform duration-300 ease-spring",
           isAgentOverlayOpen ? "translate-x-0" : "translate-x-full"
         )}
       >

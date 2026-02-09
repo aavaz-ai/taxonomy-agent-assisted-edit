@@ -714,7 +714,7 @@ export function DetailPane() {
 
   if (!selectedNode) {
     return (
-      <div className="w-[340px] h-full bg-background rounded-xl border border-border shadow-sm overflow-hidden transition-all duration-300">
+      <div className="w-[340px] h-full bg-background border-l border-border overflow-hidden transition-all duration-300 ease-spring">
         <EmptyState />
       </div>
     )
@@ -1055,7 +1055,7 @@ export function DetailPane() {
   }
 
   return (
-    <div className="w-[340px] h-full bg-background rounded-xl border border-border shadow-sm flex flex-col overflow-hidden transition-all duration-300">
+    <div className="w-[340px] h-full bg-background border-l border-border flex flex-col overflow-hidden transition-all duration-300 ease-spring">
       {/* Header */}
       <div className="p-4 border-b border-border">
         {isEditMode && (

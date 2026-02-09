@@ -16,28 +16,6 @@ import {
   Loader2,
 } from "lucide-react"
 
-// Enterpret logo component
-function EnterpretLogo() {
-  return (
-    <div className="flex items-center gap-2 px-2">
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#2D7A7A]">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M12 4C12 4 8 4 8 8V10H16V8C16 4 12 4 12 4Z"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="14" r="2" fill="white" />
-          <path d="M12 16V20" stroke="white" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </div>
-      <span className="text-lg font-semibold text-[#2D7A7A]">Enterpret</span>
-    </div>
-  )
-}
-
 interface NavItem {
   icon: React.ReactNode
   label: string
@@ -63,7 +41,10 @@ export function Sidebar() {
     <div className="flex flex-col h-full w-[200px] bg-background border-r border-border">
       {/* Logo */}
       <div className="flex items-center py-4 px-4">
-        <EnterpretLogo />
+        <div className="flex items-center gap-2 px-2">
+          <img src="/blueprint-icon.png" alt="Enterpret" className="w-8 h-8 rounded-lg" />
+          <span className="text-lg font-semibold text-[#2D7A7A]">Enterpret</span>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -93,9 +74,7 @@ export function Sidebar() {
       {/* Bottom section - User */}
       <div className="p-3 border-t border-border">
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-muted/50">
-          <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-sm font-medium">
-            SC
-          </div>
+          <img src="/placeholder-user.jpg" alt="Sam Coleman" className="w-8 h-8 rounded-full object-cover" />
           <span className="text-sm text-foreground flex-1">Sam Coleman</span>
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
         </div>
