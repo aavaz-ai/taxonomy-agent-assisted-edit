@@ -33,8 +33,6 @@ export function TaxonomyTree() {
   const l2Nodes = filterNodes(getL2Nodes(), isEditMode)
   const l3Nodes = filterNodes(getL3Nodes(), isEditMode)
 
-  const changedNodeIds = draftChanges.map((c) => c.nodeId)
-
   return (
     <div className="flex h-full transition-all duration-300 ease-spring">
       {/* Level 1 Column */}
@@ -47,7 +45,7 @@ export function TaxonomyTree() {
           onSelect={setSelectedL1Id}
           level={1}
           isEditMode={isEditMode}
-          changedNodeIds={changedNodeIds}
+          draftChanges={draftChanges}
         />
       </div>
 
@@ -61,7 +59,7 @@ export function TaxonomyTree() {
           onSelect={setSelectedL2Id}
           level={2}
           isEditMode={isEditMode}
-          changedNodeIds={changedNodeIds}
+          draftChanges={draftChanges}
         />
       </div>
 
@@ -75,7 +73,7 @@ export function TaxonomyTree() {
           onSelect={setSelectedL3Id}
           level={3}
           isEditMode={isEditMode}
-          changedNodeIds={changedNodeIds}
+          draftChanges={draftChanges}
         />
       </div>
     </div>

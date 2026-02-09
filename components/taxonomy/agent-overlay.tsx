@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useTaxonomy } from "@/lib/taxonomy-context"
+import { useTaxonomy, type AgentDiffItem, type AgentContext } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
 import { X, Sparkles, Check, ChevronDown, ChevronUp, Loader2, AlertTriangle, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -310,8 +310,82 @@ function WisdomAnalysisCard({ analysis }: { analysis: WisdomAnalysis }) {
   )
 }
 
+function buildDiffFromContext(ctx: AgentContext): AgentDiffItem[] {
+  const { operationType, wisdomContext, selectedNode, nodeLevel } = ctx
+  const nodeType = nodeLevel || "L1"
+  const nodeName = selectedNode?.name || wisdomContext.currentName || ""
+
+  switch (operationType) {
+    case "rename-subtheme":
+    case "rename-theme":
+      return [{
+        type: "modified",
+        nodeType,
+        nodeName,
+        field: "name",
+        oldValue: wisdomContext.currentName || "",
+        newValue: wisdomContext.newName || "",
+      }]
+
+    case "delete-subtheme":
+    case "delete-keyword":
+      return [{
+        type: "deleted",
+        nodeType,
+        nodeName,
+      }]
+
+    case "create-subtheme":
+    case "create-theme":
+      return [{
+        type: "added",
+        nodeType,
+        nodeName: wisdomContext.proposedName || wisdomContext.newName || "",
+      }]
+
+    case "merge-subtheme":
+    case "merge-theme":
+      return [{
+        type: "deleted",
+        nodeType,
+        nodeName: wisdomContext.sourceName || nodeName,
+      }]
+
+    case "split-subtheme": {
+      const items: AgentDiffItem[] = [{
+        type: "deleted",
+        nodeType,
+        nodeName,
+      }]
+      wisdomContext.proposedSplits?.forEach((name) => {
+        items.push({
+          type: "added",
+          nodeType,
+          nodeName: name,
+        })
+      })
+      return items
+    }
+
+    case "change-theme-category":
+      return [{
+        type: "modified",
+        nodeType,
+        nodeName: wisdomContext.themeName || nodeName,
+        field: "category",
+        oldValue: wisdomContext.currentCategory || "",
+        newValue: wisdomContext.newCategory || "",
+      }]
+
+    default:
+      return []
+  }
+}
+
 export function AgentOverlay() {
   const { isAgentOverlayOpen, setIsAgentOverlayOpen, agentContext, applyAgentChanges } = useTaxonomy()
+  const agentContextRef = useRef(agentContext)
+  agentContextRef.current = agentContext
   const [isLoading, setIsLoading] = useState(false)
   const [analysis, setAnalysis] = useState<WisdomAnalysis | null>(null)
   const [operationDescription, setOperationDescription] = useState("")
@@ -395,20 +469,23 @@ export function AgentOverlay() {
   }
 
   const handleApplyChanges = () => {
-    // Apply the changes based on the operation type
-    applyAgentChanges([])
+    if (!agentContext) return
+    const diff = buildDiffFromContext(agentContext)
+    applyAgentChanges(diff)
     handleClose()
   }
 
   // Listen for apply changes event from WisdomAnalysisCard
   useEffect(() => {
-    const handleApplyWisdomChanges = () => {
-      handleApplyChanges()
+    const handler = () => {
+      const ctx = agentContextRef.current
+      if (!ctx) return
+      const diff = buildDiffFromContext(ctx)
+      applyAgentChanges(diff)
+      handleClose()
     }
-    window.addEventListener('applyWisdomChanges', handleApplyWisdomChanges)
-    return () => {
-      window.removeEventListener('applyWisdomChanges', handleApplyWisdomChanges)
-    }
+    window.addEventListener('applyWisdomChanges', handler)
+    return () => window.removeEventListener('applyWisdomChanges', handler)
   }, [applyAgentChanges])
 
   return (
