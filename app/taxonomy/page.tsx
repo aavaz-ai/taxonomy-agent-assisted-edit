@@ -7,7 +7,6 @@ import { TaxonomyTree } from "@/components/taxonomy/taxonomy-tree"
 import { DetailPane } from "@/components/taxonomy/detail-pane"
 import { BottomBar } from "@/components/taxonomy/bottom-bar"
 import { ConfirmationModal } from "@/components/taxonomy/confirmation-modal"
-import { AgentOverlay } from "@/components/taxonomy/agent-overlay"
 
 function TaxonomyContent() {
   return (
@@ -34,7 +33,6 @@ function TaxonomyContent() {
       </div>
 
       <ConfirmationModal />
-      <AgentOverlay />
     </div>
   )
 }

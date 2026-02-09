@@ -10,6 +10,7 @@ import { FileText, ExternalLink, ChevronRight, Trash2, Merge, Scissors } from "l
 import { cn } from "@/lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
+import { isHighRisk } from "@/lib/agent-utils"
 
 // Category icon component
 function CategoryIcon({
@@ -682,7 +683,7 @@ function getAllThemesFromTaxonomy(taxonomyData: { level1: any[] }): ThemeWithPat
 }
 
 export function DetailPane() {
-  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, openAgentOverlay, taxonomyData } =
+  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, addDraftChangeWithAnalysis, initiateHighRiskReview, taxonomyData } =
     useTaxonomy()
   const [themeSearch, setThemeSearch] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
@@ -743,9 +744,23 @@ export function DetailPane() {
     return "L1"
   }
 
+  // Route edit by risk tier: high → blocking review, low/medium → non-blocking linter
+  const routeEdit = (
+    node: typeof selectedNode,
+    level: "L1" | "L2" | "L3",
+    operationType: TaxonomyOperationType,
+    wisdomContext?: Partial<WisdomPromptContext>
+  ) => {
+    if (!node) return
+    if (isHighRisk(operationType)) {
+      initiateHighRiskReview(node, level, operationType, wisdomContext)
+    } else {
+      addDraftChangeWithAnalysis(node, level, operationType, wisdomContext)
+    }
+  }
+
   const handleTitleEdit = () => {
     if (isEditMode && !isNonEditable && selectedNode) {
-      // Enable inline editing first - agent overlay will open on blur if there's a change
       setTitleValue(selectedNode.name)
       setEditingTitle(true)
     }
@@ -753,7 +768,6 @@ export function DetailPane() {
 
   const handleTitleBlur = () => {
     setEditingTitle(false)
-    // Only open agent overlay if there's an actual change
     if (titleValue !== selectedNode.name && titleValue.trim() !== "") {
       const level = getNodeLevel()
       const operationType: TaxonomyOperationType = level === "L3" ? "rename-subtheme" : "rename-theme"
@@ -763,7 +777,7 @@ export function DetailPane() {
         l3Name: level === "L3" ? selectedNode.name : undefined,
         themeName: level !== "L3" ? selectedNode.name : undefined,
       }
-      openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+      routeEdit(selectedNode, level, operationType, wisdomContext)
     }
   }
 
@@ -819,7 +833,7 @@ export function DetailPane() {
       subThemeName: theme?.name,
       l3Name: selectedNode.name,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleThemeCategoryChange = (themeId: string, newCategory: ThemeCategory) => {
@@ -849,7 +863,7 @@ export function DetailPane() {
       themeVolume: themeVolume,
       subThemeVolumes: subThemeVolumes,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleThemeDelete = (themeId: string) => {
@@ -863,7 +877,7 @@ export function DetailPane() {
       subThemeName: theme?.name,
       l3Name: selectedNode.name,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleDeleteKeyword = () => {
@@ -874,7 +888,7 @@ export function DetailPane() {
       currentName: selectedNode.name,
       l3Name: selectedNode.name,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleCreateSubTheme = (parentThemeId: string, parentThemeName: string, proposedSubThemeName: string) => {
@@ -888,7 +902,7 @@ export function DetailPane() {
       newName: proposedSubThemeName,
       l3Name: selectedNode.name,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleMergeSubTheme = (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string) => {
@@ -901,7 +915,7 @@ export function DetailPane() {
       subThemeName: sourceThemeName,
       l3Name: selectedNode.name,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleMergeTheme = (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string, destinationPath: string) => {
@@ -915,7 +929,7 @@ export function DetailPane() {
       l3Name: selectedNode.name,
       l3Path: destinationPath,
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   const handleSplitSubTheme = (sourceThemeId: string, sourceThemeName: string, splitNames: string[], retainOriginal: boolean) => {
@@ -929,7 +943,7 @@ export function DetailPane() {
       l3Name: selectedNode.name,
       // Note: retainOriginal is passed for context but the Wisdom prompt will evaluate this
     }
-    openAgentOverlay(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, level, operationType, wisdomContext)
   }
 
   // Get name by ID helpers
@@ -1041,7 +1055,7 @@ export function DetailPane() {
       description: "",
     }
 
-    openAgentOverlay(nodeForOverlay, level || "L3", operationType, wisdomContext)
+    routeEdit(nodeForOverlay, level || "L3", operationType, wisdomContext)
     handleCancelCreateTheme()
   }
 

@@ -4,10 +4,10 @@ import { useState } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Sparkles, Clock, ArrowRight } from "lucide-react"
+import { X, Sparkles, Clock, ArrowRight, CheckCircle2, AlertTriangle, XCircle } from "lucide-react"
 
 export function ConfirmationModal() {
-  const { isConfirmModalOpen, setIsConfirmModalOpen, applyChanges, draftChanges } = useTaxonomy()
+  const { isConfirmModalOpen, setIsConfirmModalOpen, applyChanges, draftChanges, analysisStats } = useTaxonomy()
   const [backfillPeriod, setBackfillPeriod] = useState("3-months")
 
   if (!isConfirmModalOpen) return null
@@ -37,6 +37,9 @@ export function ConfirmationModal() {
         return "~2 hours"
     }
   }
+
+  const hasAnalysis = draftChanges.some((c) => c.agentAnalysis)
+  const { pass, warn, fail } = analysisStats
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -68,6 +71,44 @@ export function ConfirmationModal() {
 
         {/* Content */}
         <div className="p-6">
+          {/* Agent analysis summary */}
+          {hasAnalysis && (
+            <div className="mb-6 rounded-xl border border-border overflow-hidden">
+              <div className="px-4 py-2.5 bg-muted/30 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Agent Review Summary
+                </span>
+              </div>
+              <div className="px-4 py-3 flex items-center gap-4">
+                {pass > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-700 font-medium">{pass} approved</span>
+                  </div>
+                )}
+                {warn > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm text-amber-700 font-medium">{warn} warnings</span>
+                  </div>
+                )}
+                {fail > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4 text-red-600" />
+                    <span className="text-sm text-red-700 font-medium">{fail} flagged</span>
+                  </div>
+                )}
+              </div>
+              {(warn > 0 || fail > 0) && (
+                <div className="px-4 py-2 bg-amber-50/50 border-t border-amber-200/50">
+                  <p className="text-xs text-amber-700">
+                    Some changes have warnings. Review them in the change log before applying.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* What happens next */}
           <div className="mb-6">
             <h3 className="text-sm font-medium text-foreground mb-3">What happens next</h3>
