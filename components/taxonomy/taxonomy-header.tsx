@@ -9,7 +9,7 @@ export function TaxonomyHeader() {
   const { isEditMode, setIsEditMode, searchQuery, setSearchQuery, isProcessing, processingEstimate } = useTaxonomy()
 
   return (
-    <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-background">
+    <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
       {isEditMode ? (
         <button
           onClick={() => setIsEditMode(false)}
@@ -43,10 +43,10 @@ export function TaxonomyHeader() {
               <TooltipTrigger asChild>
                 <span>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => !isProcessing && setIsEditMode(true)}
                     disabled={isProcessing}
-                    className={`text-foreground h-9 ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
+                    className={`text-foreground h-9 hover:bg-muted ${isProcessing ? "opacity-60 cursor-not-allowed" : ""}`}
                   >
                     {isProcessing ? (
                       <>

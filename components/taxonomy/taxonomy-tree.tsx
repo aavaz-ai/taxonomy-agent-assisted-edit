@@ -36,7 +36,7 @@ export function TaxonomyTree() {
   const changedNodeIds = draftChanges.map((c) => c.nodeId)
 
   return (
-    <div className="flex h-full transition-all duration-300">
+    <div className="flex h-full transition-all duration-300 ease-spring">
       {/* Level 1 Column */}
       <div className="flex-1 min-w-0 border-r border-border">
         <TaxonomyColumn

@@ -21,13 +21,7 @@ export function BottomBar() {
     setIsEditMode(false)
   }
 
-  const handleProceed = () => {
-    // Expand the bottom bar to show changes
-    setIsBottomBarExpanded(true)
-  }
-
   const handleSaveChanges = () => {
-    // Open confirmation modal
     setIsConfirmModalOpen(true)
   }
 
@@ -51,23 +45,20 @@ export function BottomBar() {
     {} as Record<string, { nodeName: string; nodeLevel: string; changes: typeof draftChanges }>,
   )
 
+  if (!isEditMode) return null
+
   return (
-    <div
-      className={`absolute bottom-0 left-[200px] right-0 px-4 pb-4 transition-all duration-300 ease-in-out ${
-        isEditMode ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"
-      }`}
-    >
-      <div className="bg-background rounded-xl border-2 border-dashed border-[#2D7A7A]/40 shadow-lg overflow-hidden">
+    <div className="bg-background border-t border-border overflow-hidden animate-[slideUp_250ms_var(--ease-spring)]">
         {/* Header row - always visible */}
         <div
-          className="px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30"
+          className="px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
           onClick={() => setIsBottomBarExpanded(!isBottomBarExpanded)}
         >
           <div className="flex items-center gap-3">
             <Layers className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-foreground">Draft changes</span>
             {draftChanges.length > 0 && (
-              <span className="bg-[#2D7A7A]/10 text-[#2D7A7A] text-xs font-medium px-2 py-0.5 rounded border border-dashed border-[#2D7A7A]/30">
+              <span className="bg-[#2D7A7A] text-white text-xs font-medium px-2 py-0.5 rounded">
                 {draftChanges.length} updated
               </span>
             )}
@@ -87,29 +78,16 @@ export function BottomBar() {
               Discard all
             </Button>
 
-            {!isBottomBarExpanded ? (
-              <Button
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleProceed()
-                }}
-                className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
-              >
-                Proceed
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSaveChanges()
-                }}
-                className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
-              >
-                Save changes
-              </Button>
-            )}
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSaveChanges()
+              }}
+              className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
+            >
+              Save changes
+            </Button>
 
             {/* Expand/Collapse indicator */}
             {isBottomBarExpanded ? (
@@ -120,9 +98,13 @@ export function BottomBar() {
           </div>
         </div>
 
-        {/* Expanded content - shows what changed */}
-        {isBottomBarExpanded && (
-          <div className="border-t border-dashed border-[#2D7A7A]/20 px-6 py-4 max-h-[200px] overflow-y-auto">
+        {/* Expanded content - animated with max-h */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-spring ${
+            isBottomBarExpanded ? "max-h-[33vh]" : "max-h-0"
+          }`}
+        >
+          <div className="border-t border-border px-6 py-4 overflow-y-auto max-h-[33vh]">
             {Object.entries(groupedChanges).length === 0 ? (
               <p className="text-sm text-muted-foreground">No changes yet</p>
             ) : (
@@ -133,9 +115,10 @@ export function BottomBar() {
                       <div className="flex items-center gap-2">
                         <Layers className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium">Updated</span>
-                        <span className="bg-[#2D7A7A]/10 text-[#2D7A7A] text-xs font-medium px-2 py-0.5 rounded">
-                          {group.nodeLevel} {group.nodeName}
+                        <span className="bg-[#2D7A7A] text-white text-xs font-medium px-2 py-0.5 rounded">
+                          {group.nodeLevel}
                         </span>
+                        <span className="text-sm text-foreground">{group.nodeName}</span>
                       </div>
                       <Button
                         variant="ghost"
@@ -166,8 +149,7 @@ export function BottomBar() {
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
-    </div>
   )
 }
