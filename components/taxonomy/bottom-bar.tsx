@@ -1,8 +1,10 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
-import { X, ChevronUp, ChevronDown, Undo2, Layers } from "lucide-react"
+import { X, ChevronUp, ChevronDown, Layers } from "lucide-react"
+import { ChangeDiffBlock } from "./change-diff-block"
 
 export function BottomBar() {
   const {
@@ -15,6 +17,22 @@ export function BottomBar() {
     setIsConfirmModalOpen,
     removeDraftChange,
   } = useTaxonomy()
+
+  const [shouldRender, setShouldRender] = useState(false)
+  const isClosing = shouldRender && !isEditMode
+
+  useEffect(() => {
+    if (isEditMode) {
+      setShouldRender(true)
+    }
+  }, [isEditMode])
+
+  useEffect(() => {
+    if (isClosing) {
+      const timer = setTimeout(() => setShouldRender(false), 250)
+      return () => clearTimeout(timer)
+    }
+  }, [isClosing])
 
   const handleDiscard = () => {
     discardAllChanges()
@@ -45,10 +63,19 @@ export function BottomBar() {
     {} as Record<string, { nodeName: string; nodeLevel: string; changes: typeof draftChanges }>,
   )
 
-  if (!isEditMode) return null
+  if (!shouldRender) return null
 
   return (
-    <div className="bg-background border-t border-border overflow-hidden animate-[slideUp_250ms_var(--ease-spring)]">
+    <div
+      className="grid transition-[grid-template-rows] duration-[250ms] ease-spring"
+      style={{ gridTemplateRows: isEditMode ? '1fr' : '0fr' }}
+    >
+      <div className="overflow-hidden">
+        <div className={`bg-background border-t border-border ${
+          isClosing
+            ? 'animate-[slideDown_250ms_var(--ease-spring)_forwards]'
+            : 'animate-[slideUp_250ms_var(--ease-spring)]'
+        }`}>
         {/* Header row - always visible */}
         <div
           className="px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
@@ -59,7 +86,7 @@ export function BottomBar() {
             <span className="text-sm font-medium text-foreground">Draft changes</span>
             {draftChanges.length > 0 && (
               <span className="bg-[#2D7A7A] text-white text-xs font-medium px-2 py-0.5 rounded">
-                {draftChanges.length} updated
+                {draftChanges.length} {draftChanges.length === 1 ? "change" : "changes"}
               </span>
             )}
           </div>
@@ -98,58 +125,27 @@ export function BottomBar() {
           </div>
         </div>
 
-        {/* Expanded content - animated with max-h */}
+        {/* Expanded content - animated with CSS grid */}
         <div
-          className={`overflow-hidden transition-all duration-300 ease-spring ${
-            isBottomBarExpanded ? "max-h-[33vh]" : "max-h-0"
-          }`}
+          className="grid transition-[grid-template-rows] duration-300 ease-spring"
+          style={{ gridTemplateRows: isBottomBarExpanded ? '1fr' : '0fr' }}
         >
-          <div className="border-t border-border px-6 py-4 overflow-y-auto max-h-[33vh]">
-            {Object.entries(groupedChanges).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No changes yet</p>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(groupedChanges).map(([nodeId, group]) => (
-                  <div key={nodeId} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Updated</span>
-                        <span className="bg-[#2D7A7A] text-white text-xs font-medium px-2 py-0.5 rounded">
-                          {group.nodeLevel}
-                        </span>
-                        <span className="text-sm text-foreground">{group.nodeName}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          group.changes.forEach((c) => handleUndo(c.id))
-                        }}
-                        className="text-muted-foreground text-xs"
-                      >
-                        <Undo2 className="w-3 h-3 mr-1" />
-                        Undo
-                      </Button>
-                    </div>
-
-                    {/* Show each field change */}
-                    <div className="pl-6 space-y-1">
-                      {group.changes.map((change) => (
-                        <div key={change.id} className="text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">{change.field}:</span>{" "}
-                          <span className="line-through text-red-400">{change.oldValue.slice(0, 50)}...</span>{" "}
-                          <span className="text-[#2D7A7A]">{change.newValue.slice(0, 50)}...</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="overflow-hidden">
+            <div className="border-t border-border px-6 py-4 overflow-y-auto max-h-[33vh]">
+              {Object.entries(groupedChanges).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No changes yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(groupedChanges).map(([nodeId, group]) => (
+                    <ChangeDiffBlock key={nodeId} group={group} onUndo={handleUndo} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+        </div>
       </div>
+    </div>
   )
 }

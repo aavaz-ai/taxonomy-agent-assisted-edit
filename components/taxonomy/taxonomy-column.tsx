@@ -3,7 +3,7 @@
 import type { TaxonomyNode } from "@/lib/taxonomy-data"
 import { cn } from "@/lib/utils"
 import { FileText, Minus, Filter, ArrowUpDown, Check } from "lucide-react"
-import { useTaxonomy, type SortType } from "@/lib/taxonomy-context"
+import { useTaxonomy, type SortType, type DraftChange } from "@/lib/taxonomy-context"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
 
@@ -15,7 +15,7 @@ interface TaxonomyColumnProps {
   onSelect: (id: string) => void
   level: 1 | 2 | 3
   isEditMode?: boolean
-  changedNodeIds?: string[]
+  draftChanges?: DraftChange[]
 }
 
 function sortNodes(nodes: TaxonomyNode[], sortType: SortType): TaxonomyNode[] {
@@ -43,7 +43,7 @@ export function TaxonomyColumn({
   onSelect,
   level,
   isEditMode = false,
-  changedNodeIds = [],
+  draftChanges = [],
 }: TaxonomyColumnProps) {
   const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, setIsAgentOverlayOpen, openAgentOverlay } = useTaxonomy()
 
@@ -113,7 +113,10 @@ export function TaxonomyColumn({
       {/* Node List */}
       <div className="flex-1 overflow-y-auto">
         {sortedNodes.map((node) => {
-          const hasChanges = changedNodeIds.includes(node.id)
+          const nodeChanges = draftChanges.filter((c) => c.nodeName === node.name)
+          const hasChanges = nodeChanges.length > 0
+          const nameChange = nodeChanges.find((c) => c.field === "name")
+          const displayName = nameChange ? nameChange.newValue : node.name
 
           return (
             <div
@@ -126,7 +129,7 @@ export function TaxonomyColumn({
               )}
             >
               <span className={cn("text-sm truncate pr-2", selectedId === node.id && "font-medium text-[#2D7A7A]")}>
-                {node.name}
+                {displayName}
               </span>
               <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                 <FileText className="w-3 h-3" />
