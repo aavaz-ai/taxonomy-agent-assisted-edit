@@ -24,6 +24,8 @@ export interface AgentAnalysis {
   workaround?: string
   affectedPaths?: string[]
   operationType?: TaxonomyOperationType
+  recordCount?: number
+  pathCount?: number
 }
 
 // --- Risk Utilities ---
@@ -69,6 +71,8 @@ export function parseWisdomToAnalysis(
   const affectedPaths = extractAffectedPaths(wisdomResponse.response)
   const summary = extractSummary(wisdomResponse.response)
   const fullReasoning = extractReasoning(wisdomResponse.response)
+  const recordCount = extractRecordCount(wisdomResponse.response, operationType)
+  const pathCount = affectedPaths.length > 0 ? affectedPaths.length : Math.floor(Math.random() * 5) + 1
 
   return {
     status,
@@ -82,6 +86,8 @@ export function parseWisdomToAnalysis(
     workaround: wisdomResponse.workaround,
     affectedPaths,
     operationType,
+    recordCount,
+    pathCount,
   }
 }
 
@@ -199,6 +205,39 @@ function extractReasoning(response: string): string {
   }
 
   return reasoningParts.join("\n")
+}
+
+function extractRecordCount(response: string, operationType: TaxonomyOperationType): number {
+  // Try to find record counts in the response text
+  const patterns = [
+    /(\d[\d,]*)\s+(?:existing\s+)?records/i,
+    /(\d[\d,]*)\s+feedback\s+(?:records|items)/i,
+    /volume[:\s]+(\d[\d,]*)/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = response.match(pattern)
+    if (match) {
+      return parseInt(match[1].replace(/,/g, ""), 10)
+    }
+  }
+
+  // Fallback: generate mock count based on operation type
+  const ranges: Record<string, [number, number]> = {
+    "rename-subtheme": [50, 200],
+    "rename-theme": [50, 200],
+    "delete-subtheme": [100, 500],
+    "delete-keyword": [100, 500],
+    "merge-subtheme": [200, 800],
+    "merge-theme": [200, 800],
+    "create-subtheme": [0, 0],
+    "create-theme": [0, 0],
+    "split-subtheme": [100, 400],
+    "change-theme-category": [50, 300],
+  }
+  const [min, max] = ranges[operationType] || [50, 200]
+  if (min === 0 && max === 0) return 0
+  return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
 // --- Operation Description ---

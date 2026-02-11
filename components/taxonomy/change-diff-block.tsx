@@ -145,27 +145,26 @@ export function ChangeDiffBlock({
   const isAccepted = firstChange?.userAccepted
   const isWarn = (analysisStatus === "warn" || analysisStatus === "fail") && !isAccepted
   const isPass = analysisStatus === "pass" || isAccepted
+  const resolution = firstChange?.resolution
+  const isDimmed = resolution === 'dismissed' || resolution === 'workaround-accepted'
 
   return (
     <div
       className={cn(
         "rounded-lg border transition-all cursor-pointer",
-        isWarn && "bg-amber-50/60 border-amber-300",
+        isWarn && !resolution && "bg-amber-50/60 border-amber-300",
         isPass && "border-green-200",
         !isWarn && !isPass && "border-border",
         isSelected && "ring-2 ring-[#2D7A7A]/40 border-[#2D7A7A]",
         !isSelected && "hover:border-muted-foreground/30",
+        isDimmed && "opacity-60",
       )}
       onClick={onClick}
     >
-      {/* Header: Status + Level / Name  [CHIP]  Undo */}
-      <div className="flex items-center justify-between px-3 py-2">
+      {/* Row 1: Status + Name + Action + Undo */}
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
           <StatusIndicator status={analysisStatus} userAccepted={isAccepted} />
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatNodeLevel(group.nodeLevel)}
-          </span>
-          <span className="text-xs text-muted-foreground shrink-0">/</span>
           <span className="text-sm font-medium text-foreground truncate">{group.nodeName}</span>
           <ActionChip action={action} />
         </div>
@@ -181,6 +180,38 @@ export function ChangeDiffBlock({
           <Undo2 className="w-3 h-3 mr-1" />
           Undo
         </Button>
+      </div>
+
+      {/* Row 2: Level + Resolution + Impact counts */}
+      <div className="flex items-center gap-2 flex-wrap px-3 pb-2">
+        <span className="text-xs text-muted-foreground">
+          {formatNodeLevel(group.nodeLevel)}
+        </span>
+        {resolution === 'dismissed' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-100 text-gray-500 border-gray-200">
+            Dismissed
+          </span>
+        )}
+        {resolution === 'contacted' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-green-50 text-green-600 border-green-200">
+            Addressed
+          </span>
+        )}
+        {resolution === 'workaround-accepted' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">
+            Workaround accepted
+          </span>
+        )}
+        {analysisStatus && analysisStatus !== "analyzing" && firstChange?.agentAnalysis?.recordCount != null && firstChange.agentAnalysis.recordCount > 0 && (
+          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {firstChange.agentAnalysis.recordCount.toLocaleString()} records
+          </span>
+        )}
+        {analysisStatus && analysisStatus !== "analyzing" && firstChange?.agentAnalysis?.pathCount != null && firstChange.agentAnalysis.pathCount > 0 && (
+          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {firstChange.agentAnalysis.pathCount} {firstChange.agentAnalysis.pathCount === 1 ? "path" : "paths"}
+          </span>
+        )}
       </div>
 
       {/* Brief preview - only shown when NOT selected (full detail is in right panel) */}

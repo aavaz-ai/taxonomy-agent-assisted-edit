@@ -26,6 +26,7 @@ export interface DraftChange {
   agentAnalysis?: AgentAnalysis
   operationDescription?: string
   userAccepted?: boolean
+  resolution?: 'dismissed' | 'contacted' | 'workaround-accepted'
 }
 
 export interface AgentDiffItem {
@@ -82,6 +83,8 @@ interface TaxonomyContextType {
   applyChanges: () => void
 
   acceptDraftChange: (changeId: string) => void
+  setDraftResolution: (changeId: string, resolution: 'dismissed' | 'contacted' | 'workaround-accepted') => void
+  acceptWorkaround: (changeId: string) => void
 
   // New: Linter-style draft change management
   addDraftChangeWithAnalysis: (
@@ -311,6 +314,47 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           ? { ...c, userAccepted: true }
           : c
       )
+    })
+  }, [])
+
+  const setDraftResolution = useCallback((changeId: string, resolution: 'dismissed' | 'contacted' | 'workaround-accepted') => {
+    setDraftChanges((prev) => {
+      const target = prev.find((c) => c.id === changeId)
+      if (!target) return prev
+      return prev.map((c) =>
+        (c.id === changeId || (target.operationDescription && c.operationDescription === target.operationDescription))
+          ? { ...c, resolution }
+          : c
+      )
+    })
+  }, [])
+
+  const acceptWorkaround = useCallback((changeId: string) => {
+    setDraftChanges((prev) => {
+      const target = prev.find((c) => c.id === changeId)
+      if (!target || !target.agentAnalysis?.workaround) return prev
+      const workaroundText = target.agentAnalysis.workaround
+      // Mark original change(s) with workaround-accepted resolution
+      const updated = prev.map((c) =>
+        (c.id === changeId || (target.operationDescription && c.operationDescription === target.operationDescription))
+          ? { ...c, resolution: 'workaround-accepted' as const }
+          : c
+      )
+      // Create a new draft change representing the workaround
+      const newId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+      const workaroundChange: DraftChange = {
+        id: newId,
+        nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        nodeName: target.nodeName,
+        nodeLevel: target.nodeLevel,
+        field: target.field,
+        oldValue: target.oldValue,
+        newValue: workaroundText,
+        timestamp: new Date(),
+        agentAnalysis: { ...target.agentAnalysis, status: 'pass' as const },
+        operationDescription: `Workaround: ${workaroundText.substring(0, 80)}`,
+      }
+      return [...updated, workaroundChange]
     })
   }, [])
 
@@ -584,6 +628,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         addDraftChange,
         removeDraftChange,
         acceptDraftChange,
+        setDraftResolution,
+        acceptWorkaround,
         discardAllChanges,
         applyChanges,
         addDraftChangeWithAnalysis,

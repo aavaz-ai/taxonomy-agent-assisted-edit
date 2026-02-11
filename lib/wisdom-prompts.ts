@@ -108,6 +108,7 @@ export interface WisdomPromptContext {
   subThemeVolumes?: { name: string; count: number }[]
   siblingThemes?: string[]
   siblingSubThemes?: string[]
+  siblingNames?: string[]
 }
 
 export function generateWisdomPrompt(

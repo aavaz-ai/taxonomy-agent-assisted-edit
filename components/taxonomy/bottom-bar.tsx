@@ -26,6 +26,9 @@ export function BottomBar() {
     acceptHighRiskReview,
     rejectHighRiskReview,
     acceptDraftChange,
+    setDraftResolution,
+    acceptWorkaround,
+    addDraftChange,
   } = useTaxonomy()
 
   const [shouldRender, setShouldRender] = useState(false)
@@ -253,13 +256,70 @@ export function BottomBar() {
                     review={highRiskReview}
                     onAccept={acceptHighRiskReview}
                     onReject={rejectHighRiskReview}
+                    onDismiss={() => {
+                      // Add pending diff to drafts with 'dismissed' resolution
+                      highRiskReview.pendingDiff.forEach((item) => {
+                        const base = {
+                          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                          nodeName: item.nodeName,
+                          nodeLevel: item.nodeType,
+                          agentAnalysis: highRiskReview.analysis,
+                          operationDescription: highRiskReview.operationDescription,
+                          resolution: 'dismissed' as const,
+                        }
+                        if (item.type === "deleted") {
+                          addDraftChange({ ...base, field: "delete-keyword", oldValue: item.nodeName, newValue: "[DELETED]" })
+                        } else if (item.type === "modified" && item.field) {
+                          addDraftChange({ ...base, field: item.field, oldValue: item.oldValue || "", newValue: item.newValue || "" })
+                        } else if (item.type === "added") {
+                          addDraftChange({ ...base, field: "add-keyword", oldValue: "", newValue: item.nodeName })
+                        } else if (item.type === "moved") {
+                          addDraftChange({ ...base, field: "move-keyword", oldValue: item.path || "", newValue: item.movedTo || "" })
+                        }
+                      })
+                      rejectHighRiskReview()
+                    }}
+                    onContactEnterpret={() => {
+                      // Add pending diff to drafts with 'contacted' resolution
+                      highRiskReview.pendingDiff.forEach((item) => {
+                        const base = {
+                          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                          nodeName: item.nodeName,
+                          nodeLevel: item.nodeType,
+                          agentAnalysis: highRiskReview.analysis,
+                          operationDescription: highRiskReview.operationDescription,
+                          resolution: 'contacted' as const,
+                        }
+                        if (item.type === "deleted") {
+                          addDraftChange({ ...base, field: "delete-keyword", oldValue: item.nodeName, newValue: "[DELETED]" })
+                        } else if (item.type === "modified" && item.field) {
+                          addDraftChange({ ...base, field: item.field, oldValue: item.oldValue || "", newValue: item.newValue || "" })
+                        } else if (item.type === "added") {
+                          addDraftChange({ ...base, field: "add-keyword", oldValue: "", newValue: item.nodeName })
+                        } else if (item.type === "moved") {
+                          addDraftChange({ ...base, field: "move-keyword", oldValue: item.path || "", newValue: item.movedTo || "" })
+                        }
+                      })
+                      rejectHighRiskReview()
+                    }}
                   />
                 ) : selectedChange ? (
                   <AgentAnalysisPanel
                     change={selectedChange}
-                    onDismiss={() => setSelectedChangeId(null)}
+                    onDismiss={() => {
+                      setDraftResolution(selectedChange.id, 'dismissed')
+                      setSelectedChangeId(null)
+                    }}
+                    onContactEnterpret={() => {
+                      setDraftResolution(selectedChange.id, 'contacted')
+                      setSelectedChangeId(null)
+                    }}
                     onAccept={() => {
                       acceptDraftChange(selectedChange.id)
+                      setSelectedChangeId(null)
+                    }}
+                    onAcceptSuggestion={() => {
+                      acceptWorkaround(selectedChange.id)
                       setSelectedChangeId(null)
                     }}
                   />

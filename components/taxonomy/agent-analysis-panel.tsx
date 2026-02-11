@@ -18,6 +18,7 @@ interface AgentAnalysisPanelProps {
   onAcceptSuggestion?: () => void
   onAccept?: () => void
   onDismiss?: () => void
+  onContactEnterpret?: () => void
 }
 
 function DiffBlock({ oldValue, newValue }: { oldValue: string; newValue: string }) {
@@ -100,7 +101,7 @@ function getVerdictBadge(verdict?: string, confidence?: string) {
   )
 }
 
-export function AgentAnalysisPanel({ change, onAcceptSuggestion, onAccept, onDismiss }: AgentAnalysisPanelProps) {
+export function AgentAnalysisPanel({ change, onAcceptSuggestion, onAccept, onDismiss, onContactEnterpret }: AgentAnalysisPanelProps) {
   const [showReasoning, setShowReasoning] = useState(false)
   const [showRawAnalysis, setShowRawAnalysis] = useState(false)
   const analysis = change.agentAnalysis
@@ -261,26 +262,52 @@ export function AgentAnalysisPanel({ change, onAcceptSuggestion, onAccept, onDis
 
       {/* Action buttons */}
       <div className="px-4 py-3 border-t border-border bg-background shrink-0">
-        {(analysis.status === "warn" || analysis.status === "fail") ? (
+        {analysis.status === "fail" ? (
+          /* fail = blocked: only Contact Enterpret and Dismiss */
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-xs"
+              onClick={() => {
+                window.open('mailto:support@enterpret.com?subject=Taxonomy Change Request', '_blank')
+                onContactEnterpret?.()
+              }}
+            >
+              Contact Enterpret
+            </Button>
+            {onDismiss && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                onClick={onDismiss}
+              >
+                Dismiss
+              </Button>
+            )}
+          </div>
+        ) : analysis.status === "warn" ? (
+          /* warn: workaround (primary) + accept anyway (secondary) + dismiss + contact */
           <div className="space-y-2">
             <div className="flex gap-2">
-              {onAccept && (
-                <Button
-                  size="sm"
-                  className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white text-xs"
-                  onClick={onAccept}
-                >
-                  Accept anyway
-                </Button>
-              )}
               {analysis.workaround && onAcceptSuggestion && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="text-xs"
+                  className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white text-xs"
                   onClick={onAcceptSuggestion}
                 >
-                  Accept suggestion
+                  Accept workaround
+                </Button>
+              )}
+              {onAccept && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs"
+                  onClick={onAccept}
+                >
+                  Accept anyway
                 </Button>
               )}
             </div>
@@ -299,13 +326,17 @@ export function AgentAnalysisPanel({ change, onAcceptSuggestion, onAccept, onDis
                 size="sm"
                 variant="ghost"
                 className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => window.open('mailto:support@enterpret.com?subject=Taxonomy Change Request', '_blank')}
+                onClick={() => {
+                  window.open('mailto:support@enterpret.com?subject=Taxonomy Change Request', '_blank')
+                  onContactEnterpret?.()
+                }}
               >
                 Contact Enterpret
               </Button>
             </div>
           </div>
         ) : (
+          /* pass or other: just dismiss */
           <div className="flex gap-2">
             {onDismiss && (
               <Button
