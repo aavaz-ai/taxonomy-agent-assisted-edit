@@ -11,6 +11,8 @@ interface HighRiskReviewCardProps {
   review: HighRiskReviewState
   onAccept: () => void
   onReject: () => void
+  onDismiss?: () => void
+  onContactEnterpret?: () => void
 }
 
 function CheckItem({ label, status, detail }: { label: string; status: "pass" | "warn" | "fail"; detail?: string }) {
@@ -31,7 +33,7 @@ function CheckItem({ label, status, detail }: { label: string; status: "pass" | 
   )
 }
 
-export function HighRiskReviewCard({ review, onAccept, onReject }: HighRiskReviewCardProps) {
+export function HighRiskReviewCard({ review, onAccept, onReject, onDismiss, onContactEnterpret }: HighRiskReviewCardProps) {
   const [showReasoning, setShowReasoning] = useState(false)
   const [showRawAnalysis, setShowRawAnalysis] = useState(false)
   const { analysis, operationDescription } = review
@@ -222,23 +224,49 @@ export function HighRiskReviewCard({ review, onAccept, onReject }: HighRiskRevie
       )}
 
       {/* Action buttons - always visible */}
-      <div className="px-4 py-3 border-t border-amber-200 bg-amber-50/30 flex gap-2 shrink-0">
-        <Button
-          size="sm"
-          className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white text-xs"
-          onClick={onAccept}
-          disabled={isAnalyzing}
-        >
-          Accept & Add to Drafts
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1 text-xs border-red-300 text-red-600 hover:bg-red-50"
-          onClick={onReject}
-        >
-          Reject
-        </Button>
+      <div className="px-4 py-3 border-t border-amber-200 bg-amber-50/30 shrink-0">
+        {analysis.verdict === "REJECT" ? (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-xs"
+              onClick={() => {
+                window.open('mailto:support@enterpret.com?subject=Taxonomy Change Request', '_blank')
+                onContactEnterpret?.()
+              }}
+            >
+              Contact Enterpret
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-xs border-red-300 text-red-600 hover:bg-red-50"
+              onClick={onDismiss}
+            >
+              Dismiss
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white text-xs"
+              onClick={onAccept}
+              disabled={isAnalyzing}
+            >
+              Accept & Add to Drafts
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-xs border-red-300 text-red-600 hover:bg-red-50"
+              onClick={onReject}
+            >
+              Reject
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

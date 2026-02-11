@@ -44,12 +44,25 @@ function generateSimulatedWisdomResponse(
   let workaround: string | undefined
 
   switch (operationType) {
-    case "rename-subtheme":
+    case "rename-subtheme": {
       response = generateRenameSubThemeResponse(context)
       confidence = "High"
       verdict = "APPROVE"
       risks = ["Minor: Records will remain mapped to the same entity with new name"]
+      // Check if newName shares 2+ words with a sibling name
+      const renameOverlap = checkSiblingNameOverlap(context.newName, context.siblingNames)
+      if (renameOverlap) {
+        verdict = "WORKAROUND"
+        confidence = "Med"
+        risks = [
+          `New name overlaps significantly with sibling "${renameOverlap}"`,
+          "May cause confusion when filtering or searching",
+          "Records could be misclassified between similar sub-themes",
+        ]
+        workaround = `Consider merging with "${renameOverlap}" instead of renaming, since both would cover similar feedback patterns`
+      }
       break
+    }
 
     case "rename-theme":
       response = generateRenameThemeResponse(context)
@@ -101,6 +114,9 @@ function generateSimulatedWisdomResponse(
             "Irreversible operation — cannot un-merge",
             "Granularity loss if sub-themes were tracking distinct aspects",
           ]
+      if (isLowSimilarity) {
+        workaround = "Keep both sub-themes separate and add clarifying descriptions to distinguish their scope"
+      }
       break
 
     case "merge-theme":
@@ -435,6 +451,24 @@ function checkLowSemanticSimilarity(source?: string, destination?: string): bool
   }
 
   return false
+}
+
+// Check if a new name shares 2+ significant words with any sibling name
+function checkSiblingNameOverlap(newName?: string, siblingNames?: string[]): string | null {
+  if (!newName || !siblingNames || siblingNames.length === 0) return null
+
+  const stopWords = new Set(["a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "by", "with", "is", "at", "it"])
+  const newWords = newName.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+
+  for (const sibling of siblingNames) {
+    const siblingWords = sibling.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+    const shared = newWords.filter(w => siblingWords.includes(w))
+    if (shared.length >= 2) {
+      return sibling
+    }
+  }
+
+  return null
 }
 
 function generateMergeSubThemeResponse(context: WisdomPromptContext): string {

@@ -1,12 +1,49 @@
 "use client"
 
+import { useState, useRef, useMemo } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
+import { searchAllThemes, type SearchResult } from "@/lib/taxonomy-data"
 import { Button } from "@/components/ui/button"
 import { HelpCircle, ChevronLeft, Loader2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function TaxonomyHeader() {
-  const { isEditMode, setIsEditMode, searchQuery, setSearchQuery, isProcessing, processingEstimate } = useTaxonomy()
+  const {
+    isEditMode, setIsEditMode, searchQuery, setSearchQuery, isProcessing, processingEstimate,
+    taxonomyData, setSelectedL1Id, setSelectedL2Id, setSelectedL3Id,
+  } = useTaxonomy()
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const searchResults = useMemo(() => {
+    if (searchQuery.length < 2) return []
+    return searchAllThemes(taxonomyData, searchQuery)
+  }, [taxonomyData, searchQuery])
+
+  const handleResultClick = (result: SearchResult) => {
+    setSelectedL1Id(result.l1Id)
+    // Use setTimeout to let the L1 state settle before setting L2/L3
+    setTimeout(() => {
+      setSelectedL2Id(result.l2Id)
+      setTimeout(() => {
+        setSelectedL3Id(result.l3Id)
+      }, 0)
+    }, 0)
+    setSearchQuery("")
+    setIsDropdownOpen(false)
+  }
+
+  const handleInputFocus = () => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+    setIsDropdownOpen(true)
+  }
+
+  const handleInputBlur = () => {
+    blurTimeoutRef.current = setTimeout(() => {
+      setIsDropdownOpen(false)
+    }, 200)
+  }
 
   return (
     <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
@@ -22,14 +59,38 @@ export function TaxonomyHeader() {
         <h1 className="text-base font-medium text-foreground shrink-0">Taxonomy</h1>
       )}
 
-      <div className="flex-1 max-w-md mx-auto">
+      <div className="flex-1 max-w-2xl mx-auto relative">
         <input
           type="text"
           placeholder="Find in Taxonomy..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value)
+            setIsDropdownOpen(true)
+          }}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           className="w-full px-3 py-2 text-sm bg-muted/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D7A7A]/20"
         />
+        {isDropdownOpen && searchQuery.length >= 2 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-lg z-50 max-h-[300px] overflow-y-auto">
+            {searchResults.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-muted-foreground">No results found</div>
+            ) : (
+              searchResults.map((result, index) => (
+                <button
+                  key={`${result.l3Id}-${result.name}-${index}`}
+                  className={`w-full text-left px-3 py-2 hover:bg-muted/50 cursor-pointer ${index < searchResults.length - 1 ? "border-b border-border" : ""}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleResultClick(result)}
+                >
+                  <div className="text-xs text-muted-foreground">{result.path}</div>
+                  <div className="text-sm font-medium text-foreground">{result.name}</div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">

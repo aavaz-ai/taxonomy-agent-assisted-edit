@@ -7,6 +7,7 @@ import { TaxonomyTree } from "@/components/taxonomy/taxonomy-tree"
 import { DetailPane } from "@/components/taxonomy/detail-pane"
 import { BottomBar } from "@/components/taxonomy/bottom-bar"
 import { ConfirmationModal } from "@/components/taxonomy/confirmation-modal"
+import { DemoConsole } from "@/components/taxonomy/demo-console"
 
 function TaxonomyContent() {
   return (
@@ -33,6 +34,7 @@ function TaxonomyContent() {
       </div>
 
       <ConfirmationModal />
+      <DemoConsole />
     </div>
   )
 }
