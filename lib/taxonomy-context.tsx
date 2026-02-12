@@ -146,6 +146,12 @@ interface TaxonomyContextType {
 
   cardDisplayMode: CardDisplayMode
   setCardDisplayMode: (mode: CardDisplayMode) => void
+
+  // Node creation flow
+  creatingNode: { level: "L1" | "L2" | "L3" } | null
+  startCreatingNode: (level: "L1" | "L2" | "L3") => void
+  cancelCreatingNode: () => void
+  commitCreatingNode: (name: string, description: string) => void
 }
 
 const TaxonomyContext = createContext<TaxonomyContextType | undefined>(undefined)
@@ -195,8 +201,23 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const [selectedL2Id, setSelectedL2IdInternal] = useState<string | null>(null)
   const [selectedL3Id, setSelectedL3IdInternal] = useState<string | null>(null)
 
+  // Node creation flow
+  const [creatingNode, setCreatingNode] = useState<{ level: "L1" | "L2" | "L3" } | null>(null)
+
+  const startCreatingNode = useCallback((level: "L1" | "L2" | "L3") => {
+    setCreatingNode({ level })
+  }, [])
+
+  const cancelCreatingNode = useCallback(() => {
+    setCreatingNode(null)
+  }, [])
+
   // Edit mode
-  const [isEditMode, setIsEditMode] = useState(false)
+  const [isEditMode, setIsEditModeInternal] = useState(false)
+  const setIsEditMode = useCallback((mode: boolean) => {
+    setIsEditModeInternal(mode)
+    if (!mode) setCreatingNode(null)
+  }, [])
 
   // Draft changes
   const [draftChanges, setDraftChanges] = useState<DraftChange[]>([])
@@ -384,6 +405,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setIsBottomBarExpanded(false)
     setSelectedChangeId(null)
     setHighRiskReview(null)
+    setCreatingNode(null)
   }, [])
 
   const applyChanges = useCallback(() => {
@@ -394,21 +416,68 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setIsConfirmModalOpen(false)
     setSelectedChangeId(null)
     setHighRiskReview(null)
+    setCreatingNode(null)
     setIsProcessing(true)
     setProcessingEstimate("2-3 hours")
   }, [draftChanges])
 
   // Build wisdom context from node + partial context
+  // Auto-populates structural context (siblings, cross-theme names, path names)
+  // from the taxonomy tree. Callsite-specific fields (newName, destinationName, etc.)
+  // come from the wisdomContext override.
   const buildWisdomContext = useCallback(
     (node: TaxonomyNode, level: "L1" | "L2" | "L3" | "Theme", wisdomContext?: Partial<WisdomPromptContext>): WisdomPromptContext => {
-      return {
+      // Look up navigation names from selection state
+      const l1Node = selectedL1Id ? taxonomyData.level1.find(n => n.id === selectedL1Id) : undefined
+      const l2Node = l1Node && selectedL2Id ? l1Node.children?.find(n => n.id === selectedL2Id) : undefined
+      const l3Node = l2Node && selectedL3Id ? l2Node.children?.find(n => n.id === selectedL3Id) : undefined
+
+      const structural: Partial<WisdomPromptContext> = {
         currentName: node.name,
-        l3Name: level === "L3" ? node.name : undefined,
-        themeName: level === "L3" ? undefined : node.name,
+        l1Name: l1Node?.name,
+        l2Name: l2Node?.name,
+        l3Name: l3Node?.name,
+      }
+
+      if (level === "Theme" && l3Node) {
+        // Theme-level: populate sibling themes and sub-theme names for the target theme
+        const allThemes = l3Node.themes || []
+        structural.siblingThemes = allThemes.map(t => t.name)
+        structural.themeName = wisdomContext?.themeName || node.name
+
+        // Find the specific theme to get its children (sub-themes)
+        const themeName = wisdomContext?.themeName || wisdomContext?.currentName || node.name
+        const targetTheme = allThemes.find(t => t.name === themeName)
+        if (targetTheme?.children) {
+          structural.subThemeNames = targetTheme.children.map(c => c.name)
+          structural.siblingNames = targetTheme.children.map(c => c.name)
+          structural.themeVolume = targetTheme.count
+
+          // Cross-theme sub-theme names: all sub-themes under OTHER themes in the same L3
+          const crossThemeSubThemeNames: string[] = []
+          const crossThemeSubThemeParents: Record<string, string> = {}
+          for (const theme of allThemes) {
+            if (theme.name !== targetTheme.name && theme.children) {
+              for (const child of theme.children) {
+                crossThemeSubThemeNames.push(child.name)
+                crossThemeSubThemeParents[child.name] = theme.name
+              }
+            }
+          }
+          structural.crossThemeSubThemeNames = crossThemeSubThemeNames
+          structural.crossThemeSubThemeParents = crossThemeSubThemeParents
+        }
+      } else if (level === "L3") {
+        structural.l3Name = node.name
+      }
+
+      // Callsite overrides take precedence over auto-populated structural context
+      return {
+        ...structural,
         ...wisdomContext,
       }
     },
-    []
+    [taxonomyData, selectedL1Id, selectedL2Id, selectedL3Id]
   )
 
   // ALL edits go through agent review panel — no silent background path
@@ -509,6 +578,28 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     [buildWisdomContext]
   )
 
+  const commitCreatingNode = useCallback(
+    (name: string, description: string) => {
+      if (!creatingNode) return
+
+      const placeholderNode: TaxonomyNode = {
+        id: `new-${creatingNode.level}`,
+        name,
+        count: 0,
+        description,
+      }
+
+      const operationType: TaxonomyOperationType = creatingNode.level === "L3" ? "create-subtheme" : "create-theme"
+      const wisdomContext: Partial<WisdomPromptContext> = {
+        proposedName: name,
+      }
+
+      setCreatingNode(null)
+      initiateHighRiskReview(placeholderNode, creatingNode.level, operationType, wisdomContext)
+    },
+    [creatingNode, initiateHighRiskReview]
+  )
+
   const acceptHighRiskReview = useCallback(() => {
     if (!highRiskReview) return
 
@@ -588,36 +679,43 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     const path = buildNodePath()
     const navIds = currentNavIds()
 
+    // Merge server-enriched workaround context into the client-side wisdomContext
+    const mergedContext = { ...wisdomContext, ...analysis.workaroundContext }
+
     const workaroundChanges = buildWorkaroundDraftChanges(
       analysis.workaroundType,
-      wisdomContext,
+      mergedContext,
       node,
       level,
       operationDescription
     )
 
-    // Add each workaround change as a pre-approved draft
-    workaroundChanges.forEach((change) => {
+    // Collapse all workaround steps into a single draft change node
+    // Title = last step (the user-facing outcome), summary = full multi-step explanation
+    const lastChange = workaroundChanges[workaroundChanges.length - 1]
+    const firstChange = workaroundChanges[0]
+    const fullSteps = workaroundChanges.map(c => c.operationDescription).join(", then ")
+    if (firstChange && lastChange) {
       addDraftChange({
         nodeId: `workaround-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        nodeName: change.nodeName,
-        nodeLevel: change.nodeLevel,
-        field: change.field,
-        oldValue: change.oldValue,
-        newValue: change.newValue,
+        nodeName: firstChange.nodeName,
+        nodeLevel: firstChange.nodeLevel,
+        field: lastChange.field,
+        oldValue: lastChange.oldValue,
+        newValue: lastChange.newValue,
         agentAnalysis: {
+          ...analysis,
           status: "pass",
           verdict: "APPROVE",
           confidence: "High",
-          operationType: analysis.operationType,
-          summary: `Workaround accepted: ${change.operationDescription}`,
+          summary: workaroundChanges.length > 1 ? fullSteps : undefined,
         },
-        operationDescription: change.operationDescription,
+        operationDescription: lastChange.operationDescription,
         resolution: 'workaround-accepted',
         nodePath: path,
         nodeNavIds: navIds,
       })
-    })
+    }
 
     setHighRiskReview(null)
   }, [highRiskReview, addDraftChange, buildNodePath, currentNavIds])
@@ -692,6 +790,10 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSortL3,
         cardDisplayMode,
         setCardDisplayMode,
+        creatingNode,
+        startCreatingNode,
+        cancelCreatingNode,
+        commitCreatingNode,
       }}
     >
       {children}

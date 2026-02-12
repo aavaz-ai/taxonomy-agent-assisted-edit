@@ -11,6 +11,7 @@ export interface WisdomQueryResponse {
   risks?: string[]
   workaround?: string
   workaroundType?: WorkaroundType
+  workaroundContext?: Partial<WisdomPromptContext>
   partialItems?: PartialItem[]
 }
 

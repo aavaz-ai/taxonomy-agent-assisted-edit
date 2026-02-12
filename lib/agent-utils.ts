@@ -18,6 +18,9 @@ export type WorkaroundType =
   | "create-theme"         // "Create a theme instead" (Transfer/Promote)
   | "move-to-parent"       // "Move sub-theme to a different parent" (Change Category)
   | "transfer-then-merge"  // "Transfer, then merge"
+  | "merge-siblings"       // "Merge with overlapping sibling" (rename overlap)
+  | "merge-keyword"        // "Merge keyword with sibling keyword" (delete keyword alternative)
+  | "change-category"      // "Change category first, then proceed" (merge-theme category conflict)
 
 export interface PartialItem {
   name: string
@@ -36,6 +39,7 @@ export interface AgentAnalysis {
   fullResponse?: string
   workaround?: string
   workaroundType?: WorkaroundType
+  workaroundContext?: Partial<WisdomPromptContext>
   partialItems?: PartialItem[]
   affectedPaths?: string[]
   operationType?: TaxonomyOperationType
@@ -107,6 +111,7 @@ export function parseWisdomToAnalysis(
     fullResponse: wisdomResponse.response,
     workaround: wisdomResponse.workaround,
     workaroundType: wisdomResponse.workaroundType,
+    workaroundContext: wisdomResponse.workaroundContext,
     partialItems: wisdomResponse.partialItems,
     affectedPaths,
     operationType,
@@ -410,6 +415,36 @@ export function buildWorkaroundDraftChanges(
           operationDescription: `Merge "${wisdomContext.sourceName}" into "${wisdomContext.destinationName}"`,
         },
       ]
+
+    case "merge-siblings":
+      return [{
+        nodeName: wisdomContext.currentName || node.name,
+        nodeLevel: level,
+        field: "merge-theme",
+        oldValue: wisdomContext.currentName || "",
+        newValue: wisdomContext.destinationName || "",
+        operationDescription: `Merge "${wisdomContext.currentName || node.name}" into "${wisdomContext.destinationName}"`,
+      }]
+
+    case "merge-keyword":
+      return [{
+        nodeName: wisdomContext.currentName || node.name,
+        nodeLevel: "L3",
+        field: "merge-theme",
+        oldValue: wisdomContext.currentName || "",
+        newValue: wisdomContext.destinationName || "",
+        operationDescription: `Merge keyword "${wisdomContext.currentName || node.name}" into "${wisdomContext.destinationName}"`,
+      }]
+
+    case "change-category":
+      return [{
+        nodeName: wisdomContext.sourceName || node.name,
+        nodeLevel: "Theme",
+        field: "category",
+        oldValue: wisdomContext.currentCategory || "",
+        newValue: wisdomContext.newCategory || "",
+        operationDescription: `Change category of "${wisdomContext.sourceName || node.name}" to ${wisdomContext.newCategory}`,
+      }]
 
     default:
       return []
