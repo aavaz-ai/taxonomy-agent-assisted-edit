@@ -1,14 +1,17 @@
 import { type TaxonomyOperationType, type WisdomPromptContext, OPERATION_CONFIGS } from "./wisdom-prompts"
+import { type WorkaroundType, type PartialItem } from "./agent-utils"
 
 export interface WisdomQueryResponse {
   success: boolean
   prompt: string
   response: string
   operationRisk: string
-  verdict?: "APPROVE" | "REJECT" | "WORKAROUND" | "APPROVE WITH CONDITIONS"
+  verdict?: "APPROVE" | "REJECT" | "WORKAROUND" | "APPROVE WITH CONDITIONS" | "PARTIAL"
   confidence?: "High" | "Med" | "Low"
   risks?: string[]
   workaround?: string
+  workaroundType?: WorkaroundType
+  partialItems?: PartialItem[]
 }
 
 export async function queryWisdom(

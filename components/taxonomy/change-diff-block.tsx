@@ -1,6 +1,6 @@
 "use client"
 
-import { Undo2, CheckCircle2, AlertTriangle, XCircle, Loader2, CircleCheckBig } from "lucide-react"
+import { Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -11,8 +11,7 @@ import {
   getGroupActionType,
   formatNodeLevel,
 } from "@/lib/inline-diff"
-import type { DraftChange } from "@/lib/taxonomy-context"
-import type { LinterStatus } from "@/lib/agent-utils"
+import type { DraftChange, CardDisplayMode } from "@/lib/taxonomy-context"
 
 // --- ActionChip ---
 
@@ -36,28 +35,26 @@ function ActionChip({ action }: { action: ActionType }) {
   )
 }
 
-// --- Status indicator ---
+// --- StatusChip (resolution + decision-pending states) ---
 
-function StatusIndicator({ status, userAccepted }: { status?: LinterStatus; userAccepted?: boolean }) {
-  if (!status || status === "pending") return null
+type StatusChipType = "ADDRESSED" | "DISMISSED" | "WORKAROUND" | "DECISION PENDING"
 
-  if (status === "analyzing") {
-    return <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2D7A7A] shrink-0" />
-  }
-  if (status === "pass") {
-    return <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
-  }
-  if ((status === "warn" || status === "fail") && userAccepted) {
-    return <CircleCheckBig className="w-3.5 h-3.5 text-green-600 shrink-0" />
-  }
-  if (status === "warn") {
-    return <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-  }
-  if (status === "fail") {
-    return <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-  }
-  // error
-  return <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+const statusChipStyles: Record<StatusChipType, { border: string; text: string }> = {
+  ADDRESSED:        { border: "border-gray-300",  text: "text-gray-400" },
+  DISMISSED:        { border: "border-gray-300",  text: "text-gray-400" },
+  WORKAROUND:       { border: "border-blue-400",  text: "text-blue-500" },
+  "DECISION PENDING": { border: "border-amber-400", text: "text-amber-500" },
+}
+
+function StatusChip({ status }: { status: StatusChipType }) {
+  const style = statusChipStyles[status]
+  return (
+    <span
+      className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border ${style.border} ${style.text}`}
+    >
+      {status}
+    </span>
+  )
 }
 
 // --- InlineDiffView ---
@@ -133,11 +130,13 @@ export function ChangeDiffBlock({
   onUndo,
   isSelected,
   onClick,
+  displayMode = "chips",
 }: {
   group: ChangeGroup
   onUndo: (changeId: string) => void
   isSelected?: boolean
   onClick?: () => void
+  displayMode?: CardDisplayMode
 }) {
   const action = getGroupActionType(group.changes.map((c) => c.field))
   const firstChange = group.changes[0]
@@ -147,26 +146,48 @@ export function ChangeDiffBlock({
   const isPass = analysisStatus === "pass" || isAccepted
   const resolution = firstChange?.resolution
   const isDimmed = resolution === 'dismissed' || resolution === 'workaround-accepted'
+  const isAnalyzing = analysisStatus === "analyzing"
+  const isResolved = resolution === 'dismissed' || resolution === 'contacted' || resolution === 'workaround-accepted'
+
+  // Left edge bar color
+  const leftBarColor = isAnalyzing
+    ? "border-l-[#2D7A7A]"
+    : isPass
+    ? "border-l-green-500"
+    : isResolved
+    ? "border-l-gray-300"
+    : isWarn && !resolution
+    ? "border-l-amber-400"
+    : "border-l-transparent"
 
   return (
     <div
       className={cn(
-        "rounded-lg border transition-all cursor-pointer",
-        isWarn && !resolution && "bg-amber-50/60 border-amber-300",
-        isPass && "border-green-200",
-        !isWarn && !isPass && "border-border",
-        isSelected && "ring-2 ring-[#2D7A7A]/40 border-[#2D7A7A]",
+        "rounded-lg border border-l-[3px] transition-all cursor-pointer",
+        leftBarColor,
+        isAnalyzing && "animate-pulse",
+        isSelected && "ring-2 ring-[#2D7A7A]/40 border-[#2D7A7A] border-l-[3px]",
         !isSelected && "hover:border-muted-foreground/30",
         isDimmed && "opacity-60",
       )}
       onClick={onClick}
     >
-      {/* Row 1: Status + Name + Action + Undo */}
+      {/* Row 1: Name + ActionChip (only when green) + Undo */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <StatusIndicator status={analysisStatus} userAccepted={isAccepted} />
           <span className="text-sm font-medium text-foreground truncate">{group.nodeName}</span>
-          <ActionChip action={action} />
+          {displayMode === "chips" ? (
+            // Chips mode: show state chip for all states
+            resolution === 'contacted' ? <StatusChip status="ADDRESSED" />
+            : resolution === 'dismissed' ? <StatusChip status="DISMISSED" />
+            : resolution === 'workaround-accepted' ? <StatusChip status="WORKAROUND" />
+            : isPass ? <ActionChip action={action} />
+            : isWarn && !resolution ? <StatusChip status="DECISION PENDING" />
+            : null
+          ) : (
+            // Bars mode: only ActionChip on green cards (original behavior)
+            isPass && <ActionChip action={action} />
+          )}
         </div>
         <Button
           variant="ghost"
@@ -182,39 +203,14 @@ export function ChangeDiffBlock({
         </Button>
       </div>
 
-      {/* Row 2: Level + Resolution + Impact counts */}
-      <div className="flex items-center gap-2 flex-wrap px-3 pb-2">
+      {/* Row 2: Level type */}
+      <div className="px-3 pb-1.5">
         <span className="text-xs text-muted-foreground">
           {formatNodeLevel(group.nodeLevel)}
         </span>
-        {resolution === 'dismissed' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-gray-100 text-gray-500 border-gray-200">
-            Dismissed
-          </span>
-        )}
-        {resolution === 'contacted' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-green-50 text-green-600 border-green-200">
-            Addressed
-          </span>
-        )}
-        {resolution === 'workaround-accepted' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-blue-50 text-blue-600 border-blue-200">
-            Workaround accepted
-          </span>
-        )}
-        {analysisStatus && analysisStatus !== "analyzing" && firstChange?.agentAnalysis?.recordCount != null && firstChange.agentAnalysis.recordCount > 0 && (
-          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-            {firstChange.agentAnalysis.recordCount.toLocaleString()} records
-          </span>
-        )}
-        {analysisStatus && analysisStatus !== "analyzing" && firstChange?.agentAnalysis?.pathCount != null && firstChange.agentAnalysis.pathCount > 0 && (
-          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-            {firstChange.agentAnalysis.pathCount} {firstChange.agentAnalysis.pathCount === 1 ? "path" : "paths"}
-          </span>
-        )}
       </div>
 
-      {/* Brief preview - only shown when NOT selected (full detail is in right panel) */}
+      {/* Row 3-4: Diff preview + one-liner - only shown when NOT selected */}
       {!isSelected && (
         <div className="px-3 pb-2">
           {action === "DELETE" && null}
@@ -229,6 +225,14 @@ export function ChangeDiffBlock({
             <div className="bg-muted rounded-md px-3 py-1.5 text-xs space-y-0.5">
               <div><span className="text-red-700 line-through">{group.changes[0].oldValue}</span></div>
               <div><span className="text-emerald-700">{group.changes[0].newValue}</span></div>
+            </div>
+          )}
+
+          {action === "MERGE" && group.changes[0] && (
+            <div className="bg-muted rounded-md px-3 py-1.5 text-xs">
+              <span className="text-muted-foreground">{group.changes[0].oldValue}</span>
+              <span className="text-muted-foreground mx-1">&rarr;</span>
+              <span className="text-blue-700">{group.changes[0].newValue}</span>
             </div>
           )}
 
