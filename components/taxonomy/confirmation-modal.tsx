@@ -39,7 +39,8 @@ export function ConfirmationModal() {
   }
 
   const hasAnalysis = draftChanges.some((c) => c.agentAnalysis)
-  const { pass, warn, fail } = analysisStats
+  const { pass, warn, fail, pending } = analysisStats
+  const hasUnresolved = warn > 0 || fail > 0 || pending > 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -82,8 +83,8 @@ export function ConfirmationModal() {
               <div className="px-4 py-3 flex items-center gap-4">
                 {pass > 0 && (
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    <span className="text-sm text-green-700 font-medium">{pass} approved</span>
+                    <CheckCircle2 className={`w-4 h-4 ${hasUnresolved ? "text-muted-foreground" : "text-green-600"}`} />
+                    <span className={`text-sm font-medium ${hasUnresolved ? "text-muted-foreground" : "text-green-700"}`}>{pass} approved</span>
                   </div>
                 )}
                 {warn > 0 && (
@@ -98,11 +99,19 @@ export function ConfirmationModal() {
                     <span className="text-sm text-red-700 font-medium">{fail} flagged</span>
                   </div>
                 )}
+                {pending > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm text-amber-700 font-medium">{pending} pending</span>
+                  </div>
+                )}
               </div>
-              {(warn > 0 || fail > 0) && (
+              {hasUnresolved && (
                 <div className="px-4 py-2 bg-amber-50/50 border-t border-amber-200/50">
                   <p className="text-xs text-amber-700">
-                    Some changes have warnings. Review them in the change log before applying.
+                    {pending > 0
+                      ? "Resolve all pending decisions before applying changes."
+                      : "Review and resolve warnings in the change log before applying."}
                   </p>
                 </div>
               )}
@@ -173,7 +182,11 @@ export function ConfirmationModal() {
             <Button variant="outline" onClick={handleCancel} className="flex-1 bg-transparent">
               Go back
             </Button>
-            <Button onClick={handleConfirm} className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white gap-2">
+            <Button
+              onClick={handleConfirm}
+              disabled={hasUnresolved}
+              className="flex-1 bg-[#2D7A7A] hover:bg-[#236363] text-white gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Confirm & Apply
               <ArrowRight className="w-4 h-4" />
             </Button>

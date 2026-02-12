@@ -704,7 +704,7 @@ function getAllThemesFromTaxonomy(taxonomyData: { level1: any[] }): ThemeWithPat
 }
 
 export function DetailPane() {
-  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, initiateHighRiskReview, taxonomyData, buildNodePath, currentNavIds } =
+  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, initiateHighRiskReview, taxonomyData, buildNodePath, currentNavIds, creatingNode, cancelCreatingNode, commitCreatingNode } =
     useTaxonomy()
   const [themeSearch, setThemeSearch] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
@@ -733,6 +733,116 @@ export function DetailPane() {
   }
 
   const selectedNode = getSelectedNode()
+
+  // Creation form state — local to this component, reset when creatingNode changes
+  const [newNodeName, setNewNodeName] = useState("")
+  const [newNodeDescription, setNewNodeDescription] = useState("")
+  const prevCreatingLevelRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const currentLevel = creatingNode?.level ?? null
+    if (currentLevel !== prevCreatingLevelRef.current) {
+      setNewNodeName("")
+      setNewNodeDescription("")
+      prevCreatingLevelRef.current = currentLevel
+    }
+  }, [creatingNode])
+
+  // Show creation form when creatingNode is set
+  if (creatingNode) {
+    const levelDescriptions: Record<string, string> = {
+      L1: "Describe what this product area covers...",
+      L2: "Describe what features this group includes...",
+      L3: "Describe the specific topic this keyword captures...",
+    }
+
+    return (
+      <div className="w-[340px] h-full bg-background border-l border-border flex flex-col overflow-hidden transition-all duration-300 ease-spring">
+        {/* Header */}
+        <div className="p-4 border-b border-border">
+          <div className="mb-4">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2">New {creatingNode.level} Keyword</h3>
+            <AutoExpandTextarea
+              value={newNodeName}
+              onChange={(e) => setNewNodeName(e.target.value)}
+              onBlur={() => {}}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  if (newNodeName.trim()) {
+                    commitCreatingNode(newNodeName.trim(), newNodeDescription.trim())
+                  }
+                } else if (e.key === "Escape") {
+                  cancelCreatingNode()
+                }
+              }}
+              placeholder="Enter keyword name..."
+              autoFocus
+              className="text-lg font-semibold py-1 px-2 border-2 border-dashed border-[#2D7A7A]/40 rounded"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="mb-4">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2">Description</h3>
+            <AutoExpandTextarea
+              value={newNodeDescription}
+              onChange={(e) => setNewNodeDescription(e.target.value)}
+              onBlur={() => {}}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  cancelCreatingNode()
+                }
+              }}
+              placeholder={levelDescriptions[creatingNode.level]}
+              className="text-sm text-muted-foreground py-1 px-2 border-2 border-dashed border-[#2D7A7A]/40 rounded"
+            />
+          </div>
+
+          {/* Themes section — empty state */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-medium text-muted-foreground">Themes 0</h3>
+            </div>
+            <div className="flex h-2 w-full rounded-full overflow-hidden bg-muted/30" />
+          </div>
+        </div>
+
+        {/* Empty theme list area */}
+        <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground text-center px-4">
+            Themes will appear after feedback is categorized under this keyword.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border flex justify-end gap-2">
+          <button
+            onClick={cancelCreatingNode}
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (newNodeName.trim()) {
+                commitCreatingNode(newNodeName.trim(), newNodeDescription.trim())
+              }
+            }}
+            disabled={!newNodeName.trim()}
+            className={cn(
+              "px-4 py-2 text-sm text-white rounded transition-colors",
+              newNodeName.trim()
+                ? "bg-[#2D7A7A] hover:bg-[#256666]"
+                : "bg-[#2D7A7A]/50 cursor-not-allowed"
+            )}
+          >
+            Create Keyword
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (!selectedNode) {
     return (
@@ -840,16 +950,30 @@ export function DetailPane() {
     }
   }
 
-  const handleThemeNameChange = (themeId: string, newName: string) => {
+  // Find a theme or sub-theme by ID across the themes tree
+  const findThemeById = (id: string): { node: Theme; parent?: Theme } | undefined => {
+    for (const theme of themes) {
+      if (theme.id === id) return { node: theme }
+      if (theme.children) {
+        const child = theme.children.find(c => c.id === id)
+        if (child) return { node: child, parent: theme }
+      }
+    }
+    return undefined
+  }
+
+  const handleSubThemeNameChange = (themeId: string, newName: string) => {
     if (isNonEditable || !selectedNode) return
-    const theme = themes.find(t => t.id === themeId)
-    const operationType: TaxonomyOperationType = "rename-subtheme"
+    const found = findThemeById(themeId)
+    if (!found) return
+    const { node: target, parent } = found
+    const isSubTheme = !!parent
+    const operationType: TaxonomyOperationType = isSubTheme ? "rename-subtheme" : "rename-theme"
     const wisdomContext: Partial<WisdomPromptContext> = {
-      currentName: theme?.name || "",
-      newName: newName,
-      themeName: theme?.name,
-      subThemeName: theme?.name,
-      l3Name: selectedNode.name,
+      currentName: target.name,
+      newName,
+      themeName: isSubTheme ? parent.name : target.name,
+      subThemeName: isSubTheme ? target.name : undefined,
     }
     routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
@@ -1208,7 +1332,7 @@ export function DetailPane() {
               theme={theme}
               depth={0}
               isEditMode={isEditMode}
-              onThemeNameChange={handleThemeNameChange}
+              onThemeNameChange={handleSubThemeNameChange}
               onThemeCategoryChange={handleThemeCategoryChange}
               onThemeDelete={handleThemeDelete}
               onCreateSubTheme={handleCreateSubTheme}

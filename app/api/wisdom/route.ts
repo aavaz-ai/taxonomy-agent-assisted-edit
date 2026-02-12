@@ -22,6 +22,7 @@ export interface WisdomQueryResponse {
   risks?: string[]
   workaround?: string
   workaroundType?: WorkaroundType
+  workaroundContext?: Partial<WisdomPromptContext>  // enriched context for workaround execution
   partialItems?: PartialItem[]
 }
 
@@ -46,6 +47,7 @@ function generateSimulatedWisdomResponse(
   let risks: string[] = []
   let workaround: string | undefined
   let workaroundType: WorkaroundType | undefined
+  let workaroundContext: Partial<WisdomPromptContext> | undefined
   let partialItems: PartialItem[] | undefined
 
   switch (operationType) {
@@ -54,25 +56,49 @@ function generateSimulatedWisdomResponse(
       confidence = "High"
       verdict = "APPROVE"
       risks = ["Minor: Records will remain mapped to the same entity with new name"]
-      // Check if newName shares 2+ words with a sibling name
-      const renameOverlap = checkSiblingNameOverlap(context.newName, context.siblingNames)
-      if (renameOverlap) {
+      // 1. Exact duplicate against cross-theme sub-themes
+      const crossDuplicate = checkSiblingDuplicate(context.newName, context.crossThemeSubThemeNames)
+      if (crossDuplicate) {
+        const duplicateParentTheme = context.crossThemeSubThemeParents?.[crossDuplicate]
         verdict = "WORKAROUND"
         confidence = "Med"
+        workaroundType = "transfer-then-merge"
         risks = [
-          `New name overlaps significantly with sibling "${renameOverlap}"`,
-          "May cause confusion when filtering or searching",
-          "Records could be misclassified between similar sub-themes",
+          `Name "${crossDuplicate}" already exists as a sub-theme under "${duplicateParentTheme || "a different theme"}"`,
+          "Duplicate names across themes cause confusion when filtering or searching",
         ]
-        workaround = `Consider merging with "${renameOverlap}" instead of renaming, since both would cover similar feedback patterns`
-      } else if (checkGenericName(context.newName)) {
-        verdict = "APPROVE WITH CONDITIONS"
-        confidence = "Med"
-        risks = [
-          "Generic names reduce discoverability",
-          "Catch-all sub-themes tend to accumulate unrelated feedback",
-          "Consider a more specific name that describes the feedback pattern",
-        ]
+        workaround = `A sub-theme named "${crossDuplicate}" already exists under "${duplicateParentTheme || "another theme"}". Merge "${context.currentName}" into "${crossDuplicate}" instead.`
+        workaroundContext = {
+          sourceName: context.currentName,
+          destinationName: crossDuplicate,
+          sourceParentTheme: context.themeName,
+          destinationParentTheme: duplicateParentTheme,
+        }
+      }
+      // 2. Check if newName shares 2+ words with a same-parent sibling name
+      if (!crossDuplicate) {
+        const renameOverlap = checkSiblingNameOverlap(context.newName, context.siblingNames)
+        if (renameOverlap) {
+          verdict = "WORKAROUND"
+          confidence = "Med"
+          workaroundType = "merge-siblings"
+          risks = [
+            `New name overlaps significantly with sibling "${renameOverlap}"`,
+            "May cause confusion when filtering or searching",
+            "Records could be misclassified between similar sub-themes",
+          ]
+          workaround = `Merge "${context.currentName}" with "${renameOverlap}" instead of renaming, since both cover similar feedback patterns.`
+          workaroundContext = { destinationName: renameOverlap }
+        // 3. Generic name check
+        } else if (checkGenericName(context.newName)) {
+          verdict = "APPROVE WITH CONDITIONS"
+          confidence = "Med"
+          risks = [
+            "Generic names reduce discoverability",
+            "Catch-all sub-themes tend to accumulate unrelated feedback",
+            "Consider a more specific name that describes the feedback pattern",
+          ]
+        }
       }
       break
     }
@@ -86,11 +112,13 @@ function generateSimulatedWisdomResponse(
       if (themeRenameOverlap) {
         verdict = "WORKAROUND"
         confidence = "Med"
+        workaroundType = "merge-siblings"
         risks = [
           `New name overlaps significantly with sibling theme "${themeRenameOverlap}"`,
           "May cause confusion when filtering or analyzing trends",
         ]
-        workaround = `Consider merging with "${themeRenameOverlap}" instead of renaming, since both would cover similar feedback patterns`
+        workaround = `Merge "${context.currentName}" with "${themeRenameOverlap}" instead of renaming, since both cover similar feedback patterns.`
+        workaroundContext = { destinationName: themeRenameOverlap }
       } else if (checkGenericName(context.newName)) {
         verdict = "APPROVE WITH CONDITIONS"
         confidence = "Med"
@@ -168,12 +196,13 @@ function generateSimulatedWisdomResponse(
       } else {
         confidence = "Low"
         verdict = "WORKAROUND"
+        workaroundType = "merge-keyword"
         risks = [
           "All Themes and sub-themes under this keyword will be deleted",
           "High volume of records may become orphaned",
           "Irreversible structural change",
         ]
-        workaround = "Consider merging this keyword with a sibling keyword to preserve taxonomy coverage"
+        workaround = "Merge this keyword with a sibling keyword to preserve taxonomy coverage instead of deleting."
       }
       break
     }
@@ -256,13 +285,14 @@ function generateSimulatedWisdomResponse(
       if (categoryConflict) {
         confidence = "Med"
         verdict = "WORKAROUND"
+        workaroundType = "change-category"
         risks = [
           "Themes have different categories — merging would force one category",
           `Source category: ${context.currentCategory}`,
           `Destination category: ${context.newCategory}`,
           "Sub-themes from source would inherit destination's category",
         ]
-        workaround = `Change the category of "${context.sourceName}" to "${context.newCategory}" before merging, or contact Enterpret to resolve the category conflict.`
+        workaround = `Change the category of "${context.sourceName}" to "${context.newCategory}" before merging.`
       } else {
         confidence = "Med"
         verdict = "APPROVE WITH CONDITIONS"
@@ -433,19 +463,21 @@ function generateSimulatedWisdomResponse(
     risks,
     workaround,
     workaroundType,
+    workaroundContext,
     partialItems,
   }
 }
 
 function generateRenameSubThemeResponse(context: WisdomPromptContext): string {
-  // Use actual taxonomy data for realistic response
   const l1 = context.l1Name || "Zoom Meetings"
   const l2 = context.l2Name || "Scheduling & Joining"
   const l3 = context.l3Name || "Schedule a Meeting"
   const theme = context.themeName || "Scheduling Blocked by Error Messages"
   const currentName = context.currentName || "Unknown Error During Scheduling"
   const newName = context.newName || "Scheduling Error Messages"
-  const siblings = context.siblingNames || ["Calendar Connection Errors", "Permission Denied Messages", "Miscellaneous Scheduling Errors"]
+  const siblings = context.siblingNames && context.siblingNames.length > 0
+    ? context.siblingNames.filter(s => s !== currentName)
+    : ["Calendar Connection Errors", "Permission Denied Messages", "Miscellaneous Scheduling Errors"]
 
   // Check for sibling naming conflict
   const conflictingSibling = siblings.find(s =>
@@ -495,27 +527,40 @@ The rename improves clarity. Feedback consistently describes unclear or missing 
 }
 
 function generateRenameThemeResponse(context: WisdomPromptContext): string {
+  const l1 = context.l1Name || "Product Area"
+  const l2 = context.l2Name || "Feature Group"
+  const l3 = context.l3Name || "Keyword"
+  const currentName = context.currentName || "Current Theme"
+  const newName = context.newName || "New Name"
+  const siblingThemes = context.siblingThemes && context.siblingThemes.length > 0
+    ? context.siblingThemes.filter(s => s !== currentName)
+    : ["Related Theme A", "Related Theme B"]
+  const subThemeNames = context.subThemeNames && context.subThemeNames.length > 0
+    ? context.subThemeNames
+    : ["SubTheme 1", "SubTheme 2", "Generic"]
+
+  const conflictingSibling = siblingThemes.find(s =>
+    s.toLowerCase() === newName.toLowerCase()
+  )
+
   return `**Operations Confidence**: High
 
 **Theme Taxonomy Path(s)**:
 - Category: COMPLAINT
-- Path 1: Product Area → Feature Group → ${context.l3Name || "Keyword"} → ${context.currentName}
+- Path 1: ${l1} → ${l2} → ${l3} → ${currentName}
 
 **Sibling Themes**:
-- Related Theme A
-- Related Theme B
-- Conflict Detected: No
+${siblingThemes.map(s => `- ${s}`).join("\n")}
+- Conflict Detected: ${conflictingSibling ? `Yes — "${conflictingSibling}"` : "No"}
 
 **Sub-themes**:
-- SubTheme 1
-- SubTheme 2
-- Generic
+${subThemeNames.map(s => `- ${s}`).join("\n")}
 - Sub-themes align with new name: Yes
 
 **Operation Evaluation**:
-- Current Name: ${context.currentName}
-- Proposed Name: ${context.newName || "New Name"}
-- Sibling Conflict: No
+- Current Name: ${currentName}
+- Proposed Name: ${newName}
+- Sibling Conflict: ${conflictingSibling ? `Yes — "${conflictingSibling}"` : "No"}
 - Category Alignment: Yes
 - Feedback Alignment: Better
 - Name Quality: Concise, Clear, Self-explanatory
@@ -530,12 +575,14 @@ function generateDeleteSubThemeResponse(context: WisdomPromptContext): string {
   const isCatchAll = context.currentName?.toLowerCase().includes("misc") ||
                      context.currentName?.toLowerCase().includes("generic")
 
-  // Use actual taxonomy data
   const l1 = context.l1Name || "Zoom Meetings"
   const l2 = context.l2Name || "Scheduling & Joining"
   const l3 = context.l3Name || "Schedule a Meeting"
   const theme = context.themeName || "Scheduling Blocked by Error Messages"
   const currentName = context.currentName || "Miscellaneous Scheduling Errors"
+  const siblings = context.siblingNames && context.siblingNames.length > 0
+    ? context.siblingNames.filter(s => s !== currentName)
+    : ["Unknown Error During Scheduling", "Calendar Connection Errors", "Permission Denied Messages"]
 
   if (isCatchAll) {
     return `**Operations Confidence**: Low
@@ -545,10 +592,8 @@ function generateDeleteSubThemeResponse(context: WisdomPromptContext): string {
 - Path: ${l1} → ${l2} → ${l3} → ${theme} → ${currentName}
 
 **Sibling SubThemes**:
-- Unknown Error During Scheduling — 142 records
-- Calendar Connection Errors — 89 records
-- Permission Denied Messages — 67 records
-- Specific siblings remaining after delete: 3
+${siblings.map(s => `- ${s}`).join("\n")}
+- Specific siblings remaining after delete: ${siblings.length}
 
 **Operation Evaluation**:
 - SubTheme Volume: 387 records
@@ -590,11 +635,8 @@ Cannot delete high-volume catch-all. 387 records with 69% orphan risk. Split int
 - Path: ${l1} → ${l2} → ${l3} → ${theme} → ${currentName}
 
 **Sibling SubThemes**:
-- Unknown Error During Scheduling — 142 records
-- Calendar Connection Errors — 89 records
-- Permission Denied Messages — 67 records
-- Miscellaneous Scheduling Errors — 387 records
-- Specific siblings remaining after delete: 4
+${siblings.map(s => `- ${s}`).join("\n")}
+- Specific siblings remaining after delete: ${siblings.length}
 
 **Operation Evaluation**:
 - SubTheme Volume: ${context.currentName ? "67" : "42"} records
@@ -1339,7 +1381,10 @@ export async function POST(request: NextRequest) {
       console.log("Using live Wisdom agent for operation:", operationType)
       response = await queryLiveWisdomAgent(operationType, context)
     } else {
-      // Use simulated response for prototype
+      // Simulate Wisdom agent processing time:
+      // ~500ms Kosh query + ~1-3s LLM inference
+      const delay = 1500 + Math.random() * 2000  // 1.5-3.5 seconds
+      await new Promise(resolve => setTimeout(resolve, delay))
       response = generateSimulatedWisdomResponse(operationType, context)
     }
 

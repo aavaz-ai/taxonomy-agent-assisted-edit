@@ -5,8 +5,6 @@ import { cn } from "@/lib/utils"
 import { FileText, Minus, Filter, ArrowUpDown, Check } from "lucide-react"
 import { useTaxonomy, type SortType, type DraftChange } from "@/lib/taxonomy-context"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
-import { isHighRisk } from "@/lib/agent-utils"
 
 interface TaxonomyColumnProps {
   title: string
@@ -46,7 +44,7 @@ export function TaxonomyColumn({
   isEditMode = false,
   draftChanges = [],
 }: TaxonomyColumnProps) {
-  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, addDraftChangeWithAnalysis, initiateHighRiskReview } = useTaxonomy()
+  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, startCreatingNode, cancelCreatingNode } = useTaxonomy()
 
   const currentSort = level === 1 ? sortL1 : level === 2 ? sortL2 : sortL3
   const setSort = level === 1 ? setSortL1 : level === 2 ? setSortL2 : setSortL3
@@ -147,7 +145,10 @@ export function TaxonomyColumn({
           return (
             <div
               key={node.id}
-              onClick={() => onSelect(node.id)}
+              onClick={() => {
+                cancelCreatingNode()
+                onSelect(node.id)
+              }}
               className={cn(
                 "flex items-center justify-between px-4 py-2.5 cursor-pointer border-l-2 transition-colors",
                 selectedId === node.id ? "border-l-[#2D7A7A] bg-[#2D7A7A]/5" : "border-l-transparent hover:bg-muted/50",
@@ -174,22 +175,8 @@ export function TaxonomyColumn({
           <div
             className="flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2 cursor-pointer hover:bg-muted/50"
             onClick={() => {
-              const placeholderNode: TaxonomyNode = {
-                id: `new-${level}`,
-                name: `New L${level} Keyword`,
-                count: 0,
-                description: "",
-              }
               const nodeLevel = `L${level}` as "L1" | "L2" | "L3"
-              const operationType: TaxonomyOperationType = level === 3 ? "create-subtheme" : "create-theme"
-              const wisdomContext: Partial<WisdomPromptContext> = {
-                proposedName: `New L${level} Keyword`,
-              }
-              if (isHighRisk(operationType)) {
-                initiateHighRiskReview(placeholderNode, nodeLevel, operationType, wisdomContext)
-              } else {
-                addDraftChangeWithAnalysis(placeholderNode, nodeLevel, operationType, wisdomContext)
-              }
+              startCreatingNode(nodeLevel)
             }}
           >
             <span>+ Add L{level} Keyword</span>

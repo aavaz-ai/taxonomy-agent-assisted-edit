@@ -176,14 +176,14 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
       <div className="flex-1 overflow-y-auto">
         {/* Diff block */}
         {showDiff && (
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 pt-3 pb-1">
             <DiffBlock oldValue={change.oldValue} newValue={change.newValue} />
           </div>
         )}
 
         {/* 1. Understanding */}
         {analysis.understanding && (
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 pt-3 pb-1">
             <div className="text-[10px] text-muted-foreground font-medium mb-1">
               Understanding
             </div>
@@ -195,7 +195,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {!!(analysis.recordCount != null && analysis.recordCount > 0 ||
           analysis.pathCount != null && analysis.pathCount > 0 ||
           (analysis.affectedPaths && analysis.affectedPaths.length > 0)) && (
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 pt-3 pb-1">
             <div className="text-[10px] text-muted-foreground font-medium mb-1.5">
               Impact
             </div>
@@ -218,7 +218,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 2. Research — collapsible */}
         {!!(analysis.checks?.length) && (
-          <div className="border-b border-border">
+          <div>
             <button
               className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
               onClick={() => setShowResearch(!showResearch)}
@@ -247,7 +247,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 3. Assessment — verdict badge + summary */}
         {analysis.summary && (
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 pt-3 pb-1">
             <div className="text-[10px] text-muted-foreground font-medium mb-1">
               Assessment
             </div>
@@ -257,7 +257,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 4. Partial items — per-item inclusion list */}
         {analysis.verdict === "PARTIAL" && analysis.partialItems && analysis.partialItems.length > 0 && (
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 pt-3 pb-1">
             <div className="text-[10px] text-orange-700 font-medium mb-2">
               Item Eligibility
             </div>
@@ -285,7 +285,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {/* 5. Typed workaround — operation-specific UI */}
         {analysis.workaroundType && analysis.workaround && (
           <div className={cn(
-            "px-4 py-3 border-b border-border",
+            "px-4 pt-3 pb-1",
             "bg-amber-50/50"
           )}>
             <div className="text-[10px] text-amber-700 font-medium mb-2">
@@ -348,7 +348,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {/* 6. Recommendation (generic — only when no typed workaround) */}
         {!analysis.workaroundType && (analysis.recommendation || analysis.workaround) && (
           <div className={cn(
-            "px-4 py-3 border-b border-border",
+            "px-4 pt-3 pb-1",
             analysis.verdict === "WORKAROUND" && "bg-amber-50/50"
           )}>
             <div className={cn(
@@ -368,7 +368,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 7. Agent Thinking — collapsible raw response */}
         {analysis.fullResponse && (
-          <div className="border-b border-border">
+          <div>
             <button
               className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
               onClick={() => setShowFullAnalysis(!showFullAnalysis)}
@@ -387,54 +387,56 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         )}
       </div>
 
-      {/* Action buttons — Dismiss + Contact Enterpret for all non-APPROVE verdicts */}
-      <div className="px-4 py-3 border-t border-border bg-background shrink-0">
-        <div className="space-y-2">
-          {showSlackThread ? (
-            <SlackThreadMock
-              operationDescription={change.operationDescription || `${change.field}: ${change.oldValue} → ${change.newValue}`}
-              rejectionReason={analysis.summary || "This operation cannot proceed as described."}
-              onClose={() => setShowSlackThread(false)}
-              onThreadCreated={onContactEnterpret}
-            />
-          ) : (
-            <div className="space-y-2">
-              {analysis.verdict === "WORKAROUND" && analysis.workaroundType && onAcceptWorkaround && (
-                <Button
-                  size="sm"
-                  className="w-full text-xs bg-[#2D7A7A] hover:bg-[#236363] text-white"
-                  onClick={onAcceptWorkaround}
-                >
-                  Accept workaround
-                </Button>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-xs"
-                  onClick={() => setShowSlackThread(true)}
-                >
-                  Contact Enterpret
-                </Button>
-                {onDismiss && (
+      {/* Action buttons — hidden for clean APPROVE/High since no user action needed */}
+      {!(analysis.verdict === "APPROVE" && analysis.confidence === "High") && (
+        <div className="px-4 py-3 border-t border-border bg-background shrink-0">
+          <div className="space-y-2">
+            {showSlackThread ? (
+              <SlackThreadMock
+                operationDescription={change.operationDescription || `${change.field}: ${change.oldValue} → ${change.newValue}`}
+                rejectionReason={analysis.summary || "This operation cannot proceed as described."}
+                onClose={() => setShowSlackThread(false)}
+                onThreadCreated={onContactEnterpret}
+              />
+            ) : (
+              <div className="space-y-2">
+                {analysis.verdict === "WORKAROUND" && analysis.workaroundType && onAcceptWorkaround && (
+                  <Button
+                    size="sm"
+                    className="w-full text-xs bg-[#2D7A7A] hover:bg-[#236363] text-white"
+                    onClick={onAcceptWorkaround}
+                  >
+                    Accept workaround
+                  </Button>
+                )}
+                <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className={cn(
-                      "flex-1 text-xs",
-                      analysis.verdict !== "APPROVE" && "border-red-300 text-red-600 hover:bg-red-50"
-                    )}
-                    onClick={onDismiss}
+                    className="flex-1 text-xs"
+                    onClick={() => setShowSlackThread(true)}
                   >
-                    Dismiss
+                    Contact Enterpret
                   </Button>
-                )}
+                  {onDismiss && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={cn(
+                        "flex-1 text-xs",
+                        analysis.verdict !== "APPROVE" && "border-red-300 text-red-600 hover:bg-red-50"
+                      )}
+                      onClick={onDismiss}
+                    >
+                      Dismiss
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

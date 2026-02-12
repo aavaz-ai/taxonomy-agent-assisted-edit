@@ -117,6 +117,8 @@ export interface WisdomPromptContext {
   siblingThemes?: string[]
   siblingSubThemes?: string[]
   siblingNames?: string[]
+  crossThemeSubThemeNames?: string[]  // sub-theme names under OTHER themes in the same L3
+  crossThemeSubThemeParents?: Record<string, string>  // sub-theme name → parent theme name (for cross-theme lookups)
 }
 
 export function generateWisdomPrompt(

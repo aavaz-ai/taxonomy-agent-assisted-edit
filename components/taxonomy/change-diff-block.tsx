@@ -145,7 +145,7 @@ export function ChangeDiffBlock({
   const isWarn = (analysisStatus === "warn" || analysisStatus === "fail") && !isAccepted
   const isPass = analysisStatus === "pass" || isAccepted
   const resolution = firstChange?.resolution
-  const isDimmed = resolution === 'dismissed' || resolution === 'workaround-accepted'
+  const isDimmed = resolution === 'dismissed'
   const isAnalyzing = analysisStatus === "analyzing"
   const isResolved = resolution === 'dismissed' || resolution === 'contacted' || resolution === 'workaround-accepted'
 

@@ -247,59 +247,61 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
         </div>
       )}
 
-      {/* Action buttons — Dismiss + Contact Enterpret for all verdicts */}
-      <div className={cn(
-        "px-4 py-3 border-t shrink-0",
-        analysis.verdict === "APPROVE" ? "border-green-200 bg-green-50/30" :
-        analysis.verdict === "REJECT" ? "border-red-200 bg-red-50/30" :
-        "border-amber-200 bg-amber-50/30"
-      )}>
-        <div className="space-y-2">
-          {showSlackThread ? (
-            <SlackThreadMock
-              operationDescription={operationDescription}
-              rejectionReason={analysis.summary || "This operation cannot proceed as described."}
-              onClose={() => setShowSlackThread(false)}
-              onThreadCreated={onContactEnterpret}
-            />
-          ) : (
-            <div className="space-y-2">
-              {analysis.verdict === "WORKAROUND" && analysis.workaroundType && onAcceptWorkaround && (
-                <Button
-                  size="sm"
-                  className="w-full text-xs bg-[#2D7A7A] hover:bg-[#236363] text-white"
-                  onClick={onAcceptWorkaround}
-                >
-                  Accept workaround
-                </Button>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-xs"
-                  onClick={() => setShowSlackThread(true)}
-                >
-                  Contact Enterpret
-                </Button>
-                {onDismiss && (
+      {/* Action buttons — hidden for clean APPROVE/High since no user action needed */}
+      {!(analysis.verdict === "APPROVE" && analysis.confidence === "High") && (
+        <div className={cn(
+          "px-4 py-3 border-t shrink-0",
+          analysis.verdict === "APPROVE" ? "border-green-200 bg-green-50/30" :
+          analysis.verdict === "REJECT" ? "border-red-200 bg-red-50/30" :
+          "border-amber-200 bg-amber-50/30"
+        )}>
+          <div className="space-y-2">
+            {showSlackThread ? (
+              <SlackThreadMock
+                operationDescription={operationDescription}
+                rejectionReason={analysis.summary || "This operation cannot proceed as described."}
+                onClose={() => setShowSlackThread(false)}
+                onThreadCreated={onContactEnterpret}
+              />
+            ) : (
+              <div className="space-y-2">
+                {analysis.verdict === "WORKAROUND" && analysis.workaroundType && onAcceptWorkaround && (
+                  <Button
+                    size="sm"
+                    className="w-full text-xs bg-[#2D7A7A] hover:bg-[#236363] text-white"
+                    onClick={onAcceptWorkaround}
+                  >
+                    Accept workaround
+                  </Button>
+                )}
+                <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className={cn(
-                      "flex-1 text-xs",
-                      analysis.verdict !== "APPROVE" && "border-red-300 text-red-600 hover:bg-red-50"
-                    )}
-                    onClick={onDismiss}
+                    className="flex-1 text-xs"
+                    onClick={() => setShowSlackThread(true)}
                   >
-                    Dismiss
+                    Contact Enterpret
                   </Button>
-                )}
+                  {onDismiss && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={cn(
+                        "flex-1 text-xs",
+                        analysis.verdict !== "APPROVE" && "border-red-300 text-red-600 hover:bg-red-50"
+                      )}
+                      onClick={onDismiss}
+                    >
+                      Dismiss
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
