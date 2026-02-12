@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useTaxonomy } from "@/lib/taxonomy-context"
 
-type ActiveTab = "recipes" | "data"
+type ActiveTab = "recipes" | "data" | "settings"
 
 interface Recipe {
   title: string
@@ -349,6 +350,72 @@ function BarRow({ label, pct }: { label: string; pct: number }) {
   )
 }
 
+function SettingsTab() {
+  const { cardDisplayMode, setCardDisplayMode } = useTaxonomy()
+
+  return (
+    <div className="space-y-5 font-mono">
+      {/* Legend */}
+      <div>
+        <div className="text-gray-400 font-semibold text-[11px] mb-2">Legend</div>
+        <div className="text-gray-500 mb-1.5">{"━".repeat(33)}</div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-green-500 shrink-0" />
+            <span className="text-[11px] text-gray-300">Approved</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-amber-400 shrink-0" />
+            <span className="text-[11px] text-gray-300">Decision Pending</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-gray-500 shrink-0" />
+            <span className="text-[11px] text-gray-300">Resolved (Dismissed / Addressed / Workaround)</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-1 h-4 rounded-full bg-[#2D7A7A] shrink-0 animate-pulse" />
+            <span className="text-[11px] text-gray-300">Analyzing</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Display Mode */}
+      <div>
+        <div className="text-gray-400 font-semibold text-[11px] mb-2">Display Mode</div>
+        <div className="text-gray-500 mb-1.5">{"━".repeat(33)}</div>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="consoleDisplayMode"
+              checked={cardDisplayMode === "chips"}
+              onChange={() => setCardDisplayMode("chips")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Chips</div>
+              <div className="text-[10px] text-gray-500">Show status labels on all cards</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="consoleDisplayMode"
+              checked={cardDisplayMode === "bars"}
+              onChange={() => setCardDisplayMode("bars")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Bars only</div>
+              <div className="text-[10px] text-gray-500">Minimal — colored bars without text labels</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DemoConsole() {
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<ActiveTab>("recipes")
@@ -392,11 +459,23 @@ export function DemoConsole() {
             >
               Real-world data
             </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`flex-1 text-xs font-mono py-2 transition-colors ${
+                activeTab === "settings"
+                  ? "text-emerald-400 border-b-2 border-emerald-400"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              Settings
+            </button>
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-3">
-            {activeTab === "recipes" ? <RecipesTab /> : <DataTab />}
+            {activeTab === "recipes" && <RecipesTab />}
+            {activeTab === "data" && <DataTab />}
+            {activeTab === "settings" && <SettingsTab />}
           </div>
         </div>
       )}
