@@ -6,11 +6,10 @@ import { useState, useRef, useEffect } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { themeCategoryColors, getThemeDistribution, type Theme, type ThemeCategory } from "@/lib/taxonomy-data"
 import { EmptyState } from "./empty-state"
-import { FileText, ExternalLink, ChevronRight, Trash2, Merge, Scissors } from "lucide-react"
+import { FileText, ExternalLink, ChevronRight, Trash2, Merge, Scissors, ArrowUpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { type TaxonomyOperationType, type WisdomPromptContext } from "@/lib/wisdom-prompts"
-import { isHighRisk } from "@/lib/agent-utils"
 
 // Category icon component
 function CategoryIcon({
@@ -159,6 +158,8 @@ function ThemeItem({
   onMergeTheme,
   currentL3Id,
   onSplitSubTheme,
+  onPromoteSubTheme,
+  parentThemeName,
 }: {
   theme: Theme
   depth?: number
@@ -168,11 +169,13 @@ function ThemeItem({
   onThemeDelete?: (themeId: string) => void
   onCreateSubTheme?: (parentThemeId: string, parentThemeName: string, proposedSubThemeName: string) => void
   siblingSubThemes?: Theme[]
-  onMergeSubTheme?: (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string) => void
+  onMergeSubTheme?: (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string, sourceParentTheme?: string, destinationParentTheme?: string) => void
   allThemes?: ThemeWithPath[]
   onMergeTheme?: (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string, destinationPath: string) => void
   currentL3Id?: string
   onSplitSubTheme?: (sourceThemeId: string, sourceThemeName: string, splitNames: string[], retainOriginal: boolean) => void
+  onPromoteSubTheme?: (sourceThemeId: string, sourceThemeName: string, parentThemeName: string) => void
+  parentThemeName?: string
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -450,7 +453,7 @@ function ThemeItem({
                       .map((dest) => (
                         <DropdownMenuItem
                           key={dest.id}
-                          onSelect={() => onMergeSubTheme?.(theme.id, theme.name, dest.id, dest.name)}
+                          onSelect={() => onMergeSubTheme?.(theme.id, theme.name, dest.id, dest.name, parentThemeName, parentThemeName)}
                         >
                           <span className="truncate">{dest.name}</span>
                           <span className="ml-auto text-xs text-muted-foreground">{dest.count}</span>
@@ -464,6 +467,22 @@ function ThemeItem({
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {/* Promote button - only for sub-themes (depth > 0) */}
+            {depth > 0 && onPromoteSubTheme && parentThemeName && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPromoteSubTheme(theme.id, theme.name, parentThemeName)
+                }}
+                className={cn(
+                  "p-1 hover:bg-[#2D7A7A]/10 rounded text-[#2D7A7A] shrink-0 transition-opacity",
+                  isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
+                )}
+                title="Promote to theme"
+              >
+                <ArrowUpCircle className="w-4 h-4" />
+              </button>
             )}
             {/* Split button - only for sub-themes (depth > 0) */}
             {depth > 0 && (
@@ -611,6 +630,8 @@ function ThemeItem({
               onMergeTheme={onMergeTheme}
               currentL3Id={currentL3Id}
               onSplitSubTheme={onSplitSubTheme}
+              onPromoteSubTheme={onPromoteSubTheme}
+              parentThemeName={theme.name}
             />
           ))}
           {/* Add Sub-theme button/input - only for parent themes (depth=0) in edit mode */}
@@ -683,7 +704,7 @@ function getAllThemesFromTaxonomy(taxonomyData: { level1: any[] }): ThemeWithPat
 }
 
 export function DetailPane() {
-  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, addDraftChangeWithAnalysis, initiateHighRiskReview, taxonomyData } =
+  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, initiateHighRiskReview, taxonomyData, buildNodePath, currentNavIds } =
     useTaxonomy()
   const [themeSearch, setThemeSearch] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
@@ -744,19 +765,15 @@ export function DetailPane() {
     return "L1"
   }
 
-  // Route edit by risk tier: high → blocking review, low/medium → non-blocking linter
+  // All edits go through agent review panel — no silent path
   const routeEdit = (
     node: typeof selectedNode,
-    level: "L1" | "L2" | "L3",
+    level: "L1" | "L2" | "L3" | "Theme",
     operationType: TaxonomyOperationType,
     wisdomContext?: Partial<WisdomPromptContext>
   ) => {
     if (!node) return
-    if (isHighRisk(operationType)) {
-      initiateHighRiskReview(node, level, operationType, wisdomContext)
-    } else {
-      addDraftChangeWithAnalysis(node, level, operationType, wisdomContext)
-    }
+    initiateHighRiskReview(node, level, operationType, wisdomContext)
   }
 
   const handleTitleEdit = () => {
@@ -807,6 +824,8 @@ export function DetailPane() {
         field: "description",
         oldValue: selectedNode.description || "",
         newValue: descriptionValue,
+        nodePath: buildNodePath(),
+        nodeNavIds: currentNavIds(),
       })
     }
     setEditingDescription(false)
@@ -823,7 +842,6 @@ export function DetailPane() {
 
   const handleThemeNameChange = (themeId: string, newName: string) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const theme = themes.find(t => t.id === themeId)
     const operationType: TaxonomyOperationType = "rename-subtheme"
     const wisdomContext: Partial<WisdomPromptContext> = {
@@ -833,12 +851,11 @@ export function DetailPane() {
       subThemeName: theme?.name,
       l3Name: selectedNode.name,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   const handleThemeCategoryChange = (themeId: string, newCategory: ThemeCategory) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const theme = themes.find(t => t.id === themeId)
     const operationType: TaxonomyOperationType = "change-theme-category"
     const categoryMap: Record<ThemeCategory, "COMPLAINT" | "IMPROVEMENT" | "PRAISE" | "HELP"> = {
@@ -863,12 +880,11 @@ export function DetailPane() {
       themeVolume: themeVolume,
       subThemeVolumes: subThemeVolumes,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   const handleThemeDelete = (themeId: string) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const theme = themes.find(t => t.id === themeId)
     const operationType: TaxonomyOperationType = "delete-subtheme"
     const wisdomContext: Partial<WisdomPromptContext> = {
@@ -877,7 +893,7 @@ export function DetailPane() {
       subThemeName: theme?.name,
       l3Name: selectedNode.name,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   const handleDeleteKeyword = () => {
@@ -893,7 +909,6 @@ export function DetailPane() {
 
   const handleCreateSubTheme = (parentThemeId: string, parentThemeName: string, proposedSubThemeName: string) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const operationType: TaxonomyOperationType = "create-subtheme"
     const wisdomContext: Partial<WisdomPromptContext> = {
       parentThemeName: parentThemeName,
@@ -902,25 +917,25 @@ export function DetailPane() {
       newName: proposedSubThemeName,
       l3Name: selectedNode.name,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
-  const handleMergeSubTheme = (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string) => {
+  const handleMergeSubTheme = (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string, sourceParentTheme?: string, destinationParentTheme?: string) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const operationType: TaxonomyOperationType = "merge-subtheme"
     const wisdomContext: Partial<WisdomPromptContext> = {
       sourceName: sourceThemeName,
       destinationName: destinationThemeName,
       subThemeName: sourceThemeName,
       l3Name: selectedNode.name,
+      sourceParentTheme,
+      destinationParentTheme,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   const handleMergeTheme = (sourceThemeId: string, sourceThemeName: string, destinationThemeId: string, destinationThemeName: string, destinationPath: string) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const operationType: TaxonomyOperationType = "merge-theme"
     const wisdomContext: Partial<WisdomPromptContext> = {
       sourceName: sourceThemeName,
@@ -929,12 +944,24 @@ export function DetailPane() {
       l3Name: selectedNode.name,
       l3Path: destinationPath,
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
+  }
+
+  const handlePromoteSubTheme = (sourceThemeId: string, sourceThemeName: string, parentThemeName: string) => {
+    if (isNonEditable || !selectedNode) return
+    const operationType: TaxonomyOperationType = "promote-subtheme"
+    const wisdomContext: Partial<WisdomPromptContext> = {
+      currentName: sourceThemeName,
+      subThemeName: sourceThemeName,
+      parentThemeName: parentThemeName,
+      themeName: parentThemeName,
+      l3Name: selectedNode.name,
+    }
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   const handleSplitSubTheme = (sourceThemeId: string, sourceThemeName: string, splitNames: string[], retainOriginal: boolean) => {
     if (isNonEditable || !selectedNode) return
-    const level = getNodeLevel()
     const operationType: TaxonomyOperationType = "split-subtheme"
     const wisdomContext: Partial<WisdomPromptContext> = {
       currentName: sourceThemeName,
@@ -943,7 +970,7 @@ export function DetailPane() {
       l3Name: selectedNode.name,
       // Note: retainOriginal is passed for context but the Wisdom prompt will evaluate this
     }
-    routeEdit(selectedNode, level, operationType, wisdomContext)
+    routeEdit(selectedNode, "Theme", operationType, wisdomContext)
   }
 
   // Get name by ID helpers
@@ -1187,6 +1214,7 @@ export function DetailPane() {
               onCreateSubTheme={handleCreateSubTheme}
               onMergeSubTheme={handleMergeSubTheme}
               onSplitSubTheme={handleSplitSubTheme}
+              onPromoteSubTheme={handlePromoteSubTheme}
               allThemes={allThemesForMerge}
               onMergeTheme={handleMergeTheme}
               currentL3Id={selectedL3Id || undefined}

@@ -5,6 +5,7 @@ import {
   type WisdomPromptContext,
   OPERATION_CONFIGS,
 } from "@/lib/wisdom-prompts"
+import { type WorkaroundType, type PartialItem } from "@/lib/agent-utils"
 
 export interface WisdomQueryRequest {
   operationType: TaxonomyOperationType
@@ -16,10 +17,12 @@ export interface WisdomQueryResponse {
   prompt: string
   response: string
   operationRisk: string
-  verdict?: "APPROVE" | "REJECT" | "WORKAROUND" | "APPROVE WITH CONDITIONS"
+  verdict?: "APPROVE" | "REJECT" | "WORKAROUND" | "APPROVE WITH CONDITIONS" | "PARTIAL"
   confidence?: "High" | "Med" | "Low"
   risks?: string[]
   workaround?: string
+  workaroundType?: WorkaroundType
+  partialItems?: PartialItem[]
 }
 
 // Configuration for Wisdom agent
@@ -42,6 +45,8 @@ function generateSimulatedWisdomResponse(
   let confidence: WisdomQueryResponse["confidence"] = "High"
   let risks: string[] = []
   let workaround: string | undefined
+  let workaroundType: WorkaroundType | undefined
+  let partialItems: PartialItem[] | undefined
 
   switch (operationType) {
     case "rename-subtheme": {
@@ -60,114 +65,356 @@ function generateSimulatedWisdomResponse(
           "Records could be misclassified between similar sub-themes",
         ]
         workaround = `Consider merging with "${renameOverlap}" instead of renaming, since both would cover similar feedback patterns`
+      } else if (checkGenericName(context.newName)) {
+        verdict = "APPROVE WITH CONDITIONS"
+        confidence = "Med"
+        risks = [
+          "Generic names reduce discoverability",
+          "Catch-all sub-themes tend to accumulate unrelated feedback",
+          "Consider a more specific name that describes the feedback pattern",
+        ]
       }
       break
     }
 
-    case "rename-theme":
+    case "rename-theme": {
       response = generateRenameThemeResponse(context)
       confidence = "High"
       verdict = "APPROVE"
       risks = ["Minor: All sub-themes will retain their mappings"]
+      const themeRenameOverlap = checkSiblingNameOverlap(context.newName, context.siblingThemes)
+      if (themeRenameOverlap) {
+        verdict = "WORKAROUND"
+        confidence = "Med"
+        risks = [
+          `New name overlaps significantly with sibling theme "${themeRenameOverlap}"`,
+          "May cause confusion when filtering or analyzing trends",
+        ]
+        workaround = `Consider merging with "${themeRenameOverlap}" instead of renaming, since both would cover similar feedback patterns`
+      } else if (checkGenericName(context.newName)) {
+        verdict = "APPROVE WITH CONDITIONS"
+        confidence = "Med"
+        risks = [
+          "Generic names reduce discoverability",
+          "Catch-all themes tend to accumulate unrelated feedback",
+        ]
+      }
       break
+    }
 
-    case "delete-subtheme":
+    case "delete-subtheme": {
       response = generateDeleteSubThemeResponse(context)
-      confidence = "Med"
-      verdict = context.currentName?.toLowerCase().includes("misc") ? "REJECT" : "APPROVE"
-      risks = [
-        "Records may become orphaned if no alternative predictions exist",
-        "Irreversible operation",
-      ]
-      if (verdict === "REJECT") {
-        workaround =
-          "Consider splitting the catch-all sub-theme into more specific categories instead of deleting"
+      const isCatchAllDelete = checkGenericName(context.currentName)
+      const isOnlyChild = context.siblingNames != null && context.siblingNames.length === 0
+
+      if (isCatchAllDelete) {
+        confidence = "Low"
+        verdict = "REJECT"
+        risks = [
+          "Cannot delete catch-all sub-theme — high-volume bucket captures unclassified feedback",
+          "Records would become orphaned with no alternative predictions",
+        ]
+        workaround = "Consider splitting the catch-all sub-theme into more specific categories instead of deleting"
+      } else if (isOnlyChild) {
+        confidence = "Med"
+        verdict = "REJECT"
+        risks = [
+          "This is the only sub-theme under its parent theme",
+          "Deleting it would leave the parent theme empty",
+          "Consider deleting or merging the parent theme instead",
+        ]
+        workaround = "Delete or merge the parent theme instead of removing its only sub-theme"
+      } else {
+        confidence = "Med"
+        verdict = "APPROVE"
+        risks = [
+          "Records may become orphaned if no alternative predictions exist",
+          "Irreversible operation",
+        ]
+        // Flag high record counts as APPROVE WITH CONDITIONS
+        const simulatedCount = context.themeVolume || 67
+        if (simulatedCount > 200) {
+          verdict = "APPROVE WITH CONDITIONS"
+          risks = [
+            `High volume sub-theme (${simulatedCount} records) — verify redistribution targets exist`,
+            "Irreversible operation",
+          ]
+        }
       }
       break
+    }
 
-    case "delete-keyword":
+    case "delete-keyword": {
       response = generateDeleteKeywordResponse(context)
-      confidence = "Low"
-      verdict = "WORKAROUND"
-      risks = [
-        "All Themes and sub-themes under this keyword will be deleted",
-        "High volume of records may become orphaned",
-        "Irreversible structural change",
-      ]
-      workaround =
-        "Consider merging this keyword with a sibling keyword to preserve taxonomy coverage"
-      break
+      // Check for DAG-shared (keyword appearing under multiple L2 paths)
+      const hasMultipleParents = context.l2Name && context.l1Name &&
+        (context.currentName?.toLowerCase().includes("general") || context.currentName?.toLowerCase().includes("common"))
+      // Check if keyword has no themes
+      const isEmptyKeyword = context.subThemeNames != null && context.subThemeNames.length === 0
 
-    case "merge-subtheme":
-      response = generateMergeSubThemeResponse(context)
-      // Reject if merging unrelated sub-themes (low semantic similarity)
-      const isLowSimilarity = checkLowSemanticSimilarity(context.sourceName, context.destinationName)
-      confidence = isLowSimilarity ? "Low" : "Med"
-      verdict = isLowSimilarity ? "REJECT" : "APPROVE"
-      risks = isLowSimilarity
-        ? [
-            "Sub-themes capture different types of feedback",
-            "Merging would lose granularity for distinct issue tracking",
-            "Users searching for specific issues would get mixed results",
-          ]
-        : [
-            "Irreversible operation — cannot un-merge",
-            "Granularity loss if sub-themes were tracking distinct aspects",
-          ]
-      if (isLowSimilarity) {
-        workaround = "Keep both sub-themes separate and add clarifying descriptions to distinguish their scope"
+      if (isEmptyKeyword) {
+        confidence = "High"
+        verdict = "APPROVE"
+        risks = ["Empty keyword with no themes — safe to remove"]
+      } else if (hasMultipleParents) {
+        confidence = "High"
+        verdict = "REJECT"
+        risks = [
+          "This keyword appears under multiple L2 paths (DAG structure)",
+          "Deleting it would affect all connected paths",
+          "Must remove from each parent path individually",
+        ]
+        workaround = "Remove this keyword from individual paths instead of deleting it entirely"
+      } else {
+        confidence = "Low"
+        verdict = "WORKAROUND"
+        risks = [
+          "All Themes and sub-themes under this keyword will be deleted",
+          "High volume of records may become orphaned",
+          "Irreversible structural change",
+        ]
+        workaround = "Consider merging this keyword with a sibling keyword to preserve taxonomy coverage"
       }
       break
+    }
 
-    case "merge-theme":
+    case "merge-subtheme": {
+      // Check cross-parent constraint first
+      const isCrossParent = context.sourceParentTheme && context.destinationParentTheme &&
+        context.sourceParentTheme !== context.destinationParentTheme
+      const isLowSimilarity = checkLowSemanticSimilarity(context.sourceName, context.destinationName)
+      const isModerateSimilarity = !isLowSimilarity && checkModerateSimilarity(context.sourceName, context.destinationName)
+
+      if (isCrossParent) {
+        const parentsRelated = checkParentSimilarity(context.sourceParentTheme, context.destinationParentTheme)
+        response = generateCrossParentMergeResponse(context)
+
+        if (parentsRelated) {
+          // Related parents → WORKAROUND with move-to-parent
+          confidence = "Med"
+          verdict = "WORKAROUND"
+          workaroundType = "move-to-parent"
+          risks = [
+            "Cannot merge sub-themes across parent themes",
+            `Source parent: "${context.sourceParentTheme}"`,
+            `Destination parent: "${context.destinationParentTheme}"`,
+            "Parents are semantically related — move sub-theme first, then merge",
+          ]
+          workaround = `Move "${context.sourceName}" from "${context.sourceParentTheme}" to "${context.destinationParentTheme}", then merge with "${context.destinationName}".`
+        } else {
+          // Unrelated parents → REJECT with merge-parents suggestion
+          confidence = "High"
+          verdict = "REJECT"
+          workaroundType = "merge-parents"
+          risks = [
+            "Cannot merge sub-themes across parent themes",
+            `Source parent: "${context.sourceParentTheme}"`,
+            `Destination parent: "${context.destinationParentTheme}"`,
+            "Sub-themes must share the same parent theme to merge",
+          ]
+          workaround = `Cannot merge sub-themes across parent themes. Consider merging the parent themes instead: "${context.sourceParentTheme}" and "${context.destinationParentTheme}"`
+        }
+      } else if (isLowSimilarity) {
+        response = generateMergeSubThemeResponse(context)
+        confidence = "High"
+        verdict = "REJECT"
+        risks = [
+          "Sub-themes capture different types of feedback",
+          "Merging would lose granularity for distinct issue tracking",
+          "Users searching for specific issues would get mixed results",
+        ]
+        workaround = "Keep both sub-themes separate and add clarifying descriptions to distinguish their scope"
+      } else if (isModerateSimilarity) {
+        response = generateMergeSubThemeResponse(context)
+        confidence = "Med"
+        verdict = "PARTIAL"
+        risks = [
+          "Partial semantic overlap — some feedback items fit both, others don't",
+          "Merging would combine unrelated feedback for non-overlapping items",
+        ]
+        partialItems = [
+          { name: `${context.sourceName} → shared patterns`, included: true, reason: "Overlapping feedback patterns can be merged" },
+          { name: `${context.sourceName} → unique patterns`, included: false, reason: "Distinct feedback not captured by destination" },
+          { name: `${context.destinationName} → all patterns`, included: true, reason: "Destination retains full coverage" },
+        ]
+      } else {
+        response = generateMergeSubThemeResponse(context)
+        confidence = "Med"
+        verdict = "APPROVE"
+        risks = [
+          "Irreversible operation — cannot un-merge",
+          "Granularity loss if sub-themes were tracking distinct aspects",
+        ]
+      }
+      break
+    }
+
+    case "merge-theme": {
       response = generateMergeThemeResponse(context)
-      confidence = "Med"
-      verdict = "APPROVE WITH CONDITIONS"
-      risks = [
-        "Irreversible structural change",
-        "Sub-theme consolidation may lose granularity",
-        "Historical trend analysis affected",
-        "Extended backfill time for large volumes",
-      ]
-      break
+      const categoryConflict = context.currentCategory && context.newCategory && context.currentCategory !== context.newCategory
 
-    case "split-subtheme":
+      if (categoryConflict) {
+        confidence = "Med"
+        verdict = "WORKAROUND"
+        risks = [
+          "Themes have different categories — merging would force one category",
+          `Source category: ${context.currentCategory}`,
+          `Destination category: ${context.newCategory}`,
+          "Sub-themes from source would inherit destination's category",
+        ]
+        workaround = `Change the category of "${context.sourceName}" to "${context.newCategory}" before merging, or contact Enterpret to resolve the category conflict.`
+      } else {
+        confidence = "Med"
+        verdict = "APPROVE WITH CONDITIONS"
+        risks = [
+          "Irreversible structural change",
+          "Sub-theme consolidation may lose granularity",
+          "Historical trend analysis affected",
+          "Extended backfill time for large volumes",
+        ]
+      }
+      break
+    }
+
+    case "split-subtheme": {
       response = generateSplitSubThemeResponse(context)
-      confidence = "Med"
-      verdict = "APPROVE WITH CONDITIONS"
-      risks = [
-        "Coverage gaps may cause record loss",
-        "Vague feedback won't redistribute cleanly",
-        "Risk of creating more fragmentation",
-      ]
-      break
+      const proposedSplits = context.proposedSplits || []
+      const splitSiblings = context.siblingNames || context.siblingSubThemes || []
 
-    case "create-subtheme":
+      // Check if any proposed name duplicates a sibling
+      const splitNameCollision = proposedSplits.find(name =>
+        checkSiblingDuplicate(name, splitSiblings)
+      )
+
+      if (splitNameCollision) {
+        confidence = "Med"
+        verdict = "PARTIAL"
+        risks = [
+          `Proposed split name "${splitNameCollision}" conflicts with existing sibling`,
+          "Some splits can proceed, others need renaming",
+        ]
+        partialItems = proposedSplits.map(name => {
+          const collision = checkSiblingDuplicate(name, splitSiblings)
+          return {
+            name,
+            included: !collision,
+            reason: collision ? `Conflicts with existing sibling "${collision}"` : "Name is unique — can proceed",
+          }
+        })
+      } else if (proposedSplits.length > 5) {
+        confidence = "Low"
+        verdict = "APPROVE WITH CONDITIONS"
+        risks = [
+          `${proposedSplits.length} splits is high — may cause over-fragmentation`,
+          "Each split should have sufficient volume (100+ records)",
+          "Consider fewer, broader categories",
+        ]
+      } else {
+        confidence = "Med"
+        verdict = "APPROVE WITH CONDITIONS"
+        risks = [
+          "Coverage gaps may cause record loss",
+          "Vague feedback won't redistribute cleanly",
+          "Risk of creating more fragmentation",
+        ]
+      }
+      break
+    }
+
+    case "create-subtheme": {
       response = generateCreateSubThemeResponse(context)
-      confidence = "High"
-      verdict = "APPROVE"
-      risks = ["Low: Adding leaf node only, parent Theme/siblings unaffected"]
-      break
+      const createSubThemeName = context.proposedName || context.newName
+      const createSubThemeDuplicate = checkSiblingDuplicate(createSubThemeName, context.siblingNames || context.siblingSubThemes)
 
-    case "create-theme":
+      if (createSubThemeDuplicate) {
+        confidence = "High"
+        verdict = "REJECT"
+        risks = [
+          `Sub-theme "${createSubThemeDuplicate}" already exists under this parent theme`,
+          "Creating a duplicate would cause ambiguity in record classification",
+        ]
+      } else if (checkGenericName(createSubThemeName)) {
+        confidence = "Med"
+        verdict = "APPROVE WITH CONDITIONS"
+        risks = [
+          "Generic name may accumulate unrelated feedback",
+          "Consider a more specific name that describes the feedback pattern",
+        ]
+      } else {
+        confidence = "High"
+        verdict = "APPROVE"
+        risks = ["Low: Adding leaf node only, parent Theme/siblings unaffected"]
+      }
+      break
+    }
+
+    case "create-theme": {
       response = generateCreateThemeResponse(context)
-      confidence = "Med"
-      verdict = "APPROVE"
-      risks = [
-        "Duplicate Theme creation if not validated",
-        "Wrong L3 placement may cause records not to flow correctly",
-      ]
-      break
+      const createThemeName = context.proposedName || context.newName
+      const createThemeDuplicate = checkSiblingDuplicate(createThemeName, context.siblingThemes)
 
-    case "change-theme-category":
+      if (createThemeDuplicate) {
+        confidence = "High"
+        verdict = "REJECT"
+        risks = [
+          `Theme "${createThemeDuplicate}" already exists under this L3 keyword`,
+          "Creating a duplicate would cause ambiguity in record classification",
+        ]
+      } else {
+        confidence = "Med"
+        verdict = "APPROVE"
+        risks = [
+          "Duplicate Theme creation if not validated",
+          "Wrong L3 placement may cause records not to flow correctly",
+        ]
+      }
+      break
+    }
+
+    case "change-theme-category": {
       response = generateChangeCategoryResponse(context)
-      confidence = "High"
-      verdict = "APPROVE"
+      // In real agent behavior, category change = moving sub-themes to a different
+      // parent theme with the target category. Check if such a theme exists.
+      const targetThemeExists = context.siblingThemes && context.siblingThemes.length > 0
+
+      if (!targetThemeExists && context.siblingThemes != null) {
+        // No theme with target category under this L3 → need to create one
+        confidence = "Med"
+        verdict = "WORKAROUND"
+        workaroundType = "create-theme"
+        risks = [
+          "No existing theme with the target category under this L3 keyword",
+          "A new theme must be created to host these sub-themes",
+        ]
+        workaround = `No theme with category "${context.newCategory}" exists under this L3 keyword. Create a new theme with category "${context.newCategory}" first, then move sub-themes.`
+      } else {
+        confidence = "High"
+        verdict = "APPROVE"
+        risks = [
+          "All sub-themes inherit the new category",
+          "Dashboard/filter counts will shift",
+          "Saved views filtered by old category will exclude this Theme",
+        ]
+        // Flag high record counts
+        if (context.themeVolume && context.themeVolume > 200) {
+          verdict = "APPROVE WITH CONDITIONS"
+          risks.push(`High volume theme (${context.themeVolume} records) — dashboard impact will be significant`)
+        }
+      }
+      break
+    }
+
+    case "promote-subtheme":
+      response = generatePromoteSubThemeResponse(context)
+      confidence = "Med"
+      verdict = "WORKAROUND"
+      workaroundType = "create-theme"
       risks = [
-        "All sub-themes inherit the new category",
-        "Dashboard/filter counts will shift",
-        "Saved views filtered by old category will exclude this Theme",
+        "Direct promotion not supported — requires creating a new theme",
+        "Category assignment needed for the new theme",
+        "Parent theme may be left with fewer sub-themes",
       ]
+      workaround = `Cannot promote directly. Create a new theme "${context.subThemeName || context.currentName}" instead, then migrate feedback from the sub-theme.`
       break
 
     default:
@@ -185,6 +432,8 @@ function generateSimulatedWisdomResponse(
     confidence,
     risks,
     workaround,
+    workaroundType,
+    partialItems,
   }
 }
 
@@ -196,6 +445,14 @@ function generateRenameSubThemeResponse(context: WisdomPromptContext): string {
   const theme = context.themeName || "Scheduling Blocked by Error Messages"
   const currentName = context.currentName || "Unknown Error During Scheduling"
   const newName = context.newName || "Scheduling Error Messages"
+  const siblings = context.siblingNames || ["Calendar Connection Errors", "Permission Denied Messages", "Miscellaneous Scheduling Errors"]
+
+  // Check for sibling naming conflict
+  const conflictingSibling = siblings.find(s =>
+    s.toLowerCase() === newName.toLowerCase() ||
+    s.toLowerCase().replace(/\s+/g, "") === newName.toLowerCase().replace(/\s+/g, "")
+  )
+  const hasConflict = !!conflictingSibling
 
   return `**Operations Confidence**: High
 
@@ -204,15 +461,18 @@ function generateRenameSubThemeResponse(context: WisdomPromptContext): string {
 - Path: ${l1} → ${l2} → ${l3} → ${theme} → ${currentName}
 
 **Sibling SubThemes**:
-- Calendar Connection Errors — 89 records
-- Permission Denied Messages — 67 records
-- Miscellaneous Scheduling Errors — 124 records
-- Conflict Detected: No
+${siblings.map(s => `- ${s}`).join("\n")}
+- Conflict with existing: **${hasConflict ? `Yes — "${conflictingSibling}"` : "No"}**
+
+**Semantic Alignment with Parent**:
+- Parent Theme: "${theme}"
+- Proposed Name: "${newName}"
+- Alignment: Yes — name stays within scope of parent theme
 
 **Operation Evaluation**:
 - Current Name: ${currentName}
 - Proposed Name: ${newName}
-- Sibling Conflict: No
+- Sibling Conflict: ${hasConflict ? `Yes — "${conflictingSibling}"` : "No"}
 - Parent Theme Alignment: Yes — name stays within scope of scheduling errors
 - Feedback Alignment: Better
   - Sample feedback patterns:
@@ -426,6 +686,74 @@ Instead of deleting, consider:
 High-volume keyword (1,097 records) with 42% orphan risk. Merge with sibling keyword "Join via Link" to preserve scheduling feedback coverage.`
 }
 
+// Check if a name is generic (other, misc, etc.)
+function checkGenericName(name?: string): boolean {
+  if (!name) return false
+  const generic = ["other", "miscellaneous", "misc", "general", "generic", "uncategorized", "n/a", "unknown", "default"]
+  return generic.some(g => name.toLowerCase().trim() === g || name.toLowerCase().trim() === g + "s")
+}
+
+// Check if two parent themes are semantically related (for cross-parent merge workaround)
+function checkParentSimilarity(parent1?: string, parent2?: string): boolean {
+  if (!parent1 || !parent2) return false
+  const p1 = parent1.toLowerCase()
+  const p2 = parent2.toLowerCase()
+
+  // Same root words
+  const words1 = p1.split(/\s+/).filter(w => w.length > 3)
+  const words2 = p2.split(/\s+/).filter(w => w.length > 3)
+  const shared = words1.filter(w => words2.includes(w))
+  if (shared.length > 0) return true
+
+  // Related pairs
+  const relatedPairs = [
+    ["error", "issue"], ["error", "problem"], ["issue", "problem"],
+    ["bug", "error"], ["bug", "issue"],
+    ["request", "improvement"], ["feature", "improvement"],
+    ["complaint", "issue"], ["complaint", "problem"],
+    ["slow", "performance"], ["lag", "performance"],
+    ["crash", "error"], ["freeze", "crash"],
+    ["ui", "interface"], ["ui", "display"],
+    ["login", "auth"], ["login", "sign"],
+    ["sync", "connection"], ["sync", "integration"],
+  ]
+
+  for (const [t1, t2] of relatedPairs) {
+    if ((p1.includes(t1) && p2.includes(t2)) || (p1.includes(t2) && p2.includes(t1))) {
+      return true
+    }
+  }
+
+  return false
+}
+
+// Check if a name duplicates a sibling
+function checkSiblingDuplicate(name?: string, siblings?: string[]): string | null {
+  if (!name || !siblings || siblings.length === 0) return null
+  const normalized = name.toLowerCase().trim()
+  for (const sibling of siblings) {
+    if (sibling.toLowerCase().trim() === normalized) {
+      return sibling
+    }
+  }
+  return null
+}
+
+// Check if two sub-themes have moderate semantic similarity (for PARTIAL verdict)
+function checkModerateSimilarity(source?: string, destination?: string): boolean {
+  if (!source || !destination) return false
+  const sourceLower = source.toLowerCase()
+  const destLower = destination.toLowerCase()
+
+  // Share exactly 1 significant word (not enough for full merge, not incompatible either)
+  const stopWords = new Set(["a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "by", "with", "is", "at", "it", "not"])
+  const sourceWords = sourceLower.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+  const destWords = destLower.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w))
+  const shared = sourceWords.filter(w => destWords.includes(w))
+
+  return shared.length === 1 && sourceWords.length >= 2 && destWords.length >= 2
+}
+
 // Check if two sub-themes have low semantic similarity based on names
 function checkLowSemanticSimilarity(source?: string, destination?: string): boolean {
   if (!source || !destination) return false
@@ -493,7 +821,7 @@ function generateMergeSubThemeResponse(context: WisdomPromptContext): string {
 - Path: ${l1} → ${l2} → ${l3} → ${theme} → ${dest}
 
 **Operation Evaluation**:
-- Same Parent Theme: Yes
+- Same Parent Theme: **Yes** — both under "${theme}"
 - Source Volume: 89 records
 - Destination Volume: 67 records
 - Semantic Similarity: Low
@@ -537,7 +865,7 @@ Cannot merge sub-themes with low semantic similarity. "${source}" captures calen
 - Path: ${l1} → ${l2} → ${l3} → ${theme} → ${dest}
 
 **Operation Evaluation**:
-- Same Parent Theme: Yes
+- Same Parent Theme: **Yes** — both under "${theme}"
 - Source Volume: 85 records
 - Destination Volume: 120 records
 - Semantic Similarity: High
@@ -590,16 +918,40 @@ Merge is appropriate, but consolidate overlapping sub-themes (SubTheme A → Sub
 }
 
 function generateSplitSubThemeResponse(context: WisdomPromptContext): string {
+  const l1 = context.l1Name || "Product Area"
+  const l2 = context.l2Name || "Feature Group"
+  const l3 = context.l3Name || "Keyword"
+  const theme = context.themeName || "Parent Theme"
+  const subTheme = context.currentName || context.subThemeName || "Sub-theme"
+  const proposedSplits = context.proposedSplits || []
+  const siblingNames = context.siblingNames || context.siblingSubThemes || []
+
+  const splitList = proposedSplits.length > 0
+    ? proposedSplits.map((name, i) => `- Split ${i + 1}: "${name}" — would capture ~${Math.round(70 / proposedSplits.length)}%`).join("\n")
+    : `- Split 1: Specific Issue Feedback — would capture 35%\n- Split 2: Improvement Requests — would capture 30%\n- Split 3: General Experience — would capture 25%`
+
+  const siblingCheck = proposedSplits.length > 0 && siblingNames.length > 0
+    ? proposedSplits.some(s => siblingNames.some(sib =>
+        s.toLowerCase().includes(sib.toLowerCase()) || sib.toLowerCase().includes(s.toLowerCase())
+      ))
+      ? "Yes — one or more proposed names overlap with existing siblings"
+      : "No — proposed names are distinct from existing siblings"
+    : "No"
+
   return `**Operations Confidence**: Med
 
 **SubTheme Taxonomy Path(s)**:
-- Parent Theme: ${context.themeName || "Parent Theme"}
-- Path 1: Product Area → Feature Group → Keyword → Theme → ${context.currentName}
+- Parent Theme: ${theme}
+- Path: ${l1} → ${l2} → ${l3} → ${theme} → ${subTheme}
 
-**Sibling SubThemes**: Related SubTheme A, Related SubTheme B, Generic
+**Sibling SubThemes**: ${siblingNames.length > 0 ? siblingNames.join(", ") : "Related SubTheme A, Related SubTheme B, Generic"}
 
-**Feedback Pattern Analysis**:
+**Volume Check**:
 - Total Volume: 450 records
+- Volume Threshold: 100+ records per split recommended
+- Per-split estimate: ${proposedSplits.length > 0 ? `${Math.round(450 * 0.7 / proposedSplits.length)} records per split` : "150 records per split"} — ${proposedSplits.length > 0 && Math.round(450 * 0.7 / proposedSplits.length) >= 100 ? "Sufficient" : "Sufficient"}
+
+**Feedback Segmentation Analysis**:
 - Pattern 1: Specific Issue Type — 35% of feedback
   - Sample: "Having trouble with specific functionality"
 - Pattern 2: Related Concern — 30% of feedback
@@ -608,21 +960,28 @@ function generateSplitSubThemeResponse(context: WisdomPromptContext): string {
   - Sample: "Overall experience with feature"
 - Uncategorized/Vague: 10%
 
+**Coverage Gap Analysis**:
+- 10% of feedback (45 records) would not be captured by proposed splits
+- These are vague mentions like "something is wrong" with no clear category
+- Recommendation: Let these fall to the parent theme's Generic/Misc sub-theme
+
 **Recommended Splits**:
-- Split 1: Specific Issue Feedback — would capture 35%
-- Split 2: Improvement Requests — would capture 30%
-- Split 3: General Experience — would capture 25%
+${splitList}
+
+**Sibling Naming Check**:
+- Sibling Overlap: ${siblingCheck}
+- Naming Pattern: ${siblingNames.length > 0 ? "Follows sibling naming convention" : "Consistent with parent theme scope"}
 
 **Operation Evaluation**:
 - Current Volume: 450 records
 - Volume per Split: Sufficient (100+ per split)
 - Coverage: 90% of feedback covered
-- Sibling Overlap: No
+- Sibling Overlap: ${siblingCheck.startsWith("Yes") ? "Yes — review names" : "No"}
 - Retain Original: Not Recommended — distinct patterns identified
 
 **Risks**:
-- 10% of records may not fit cleanly into splits
-- Vague feedback will fall to Generic/Misc
+- Coverage gaps — 10% of records may not fit cleanly into splits
+- Vague feedback won't redistribute cleanly
 - Ensure split names are specific enough for accurate inferencing
 
 **Verdict**: APPROVE WITH CONDITIONS
@@ -744,6 +1103,9 @@ function generateChangeCategoryResponse(context: WisdomPromptContext): string {
 - Proposed Category: ${context.newCategory || "IMPROVEMENT"}
 - Path: Product Area → Feature Group → ${context.l3Name || "Keyword"} → ${context.themeName || context.currentName}
 
+**Category Inheritance**:
+Categories are theme-level properties — all sub-themes inherit the parent theme's category. Changing this category will update ${subThemeCount} sub-theme${subThemeCount !== 1 ? "s" : ""}.
+
 **Sub-themes** (will inherit new category):
 ${subThemeList}
 - Total: ${subThemeCount} sub-theme${subThemeCount !== 1 ? "s" : ""}
@@ -753,6 +1115,10 @@ ${subThemeList}
 - Feedback Sentiment Breakdown:
 ${sentimentBreakdown}
 - Feedback aligns with proposed category: ${context.newCategory === "IMPROVEMENT" ? "Yes" : "Likely"}
+
+**Sibling Impact Analysis**:
+- Changing this theme's category does not affect sibling themes
+- Only sub-themes under "${context.themeName || "this theme"}" are affected
 
 **Operation Evaluation**:
 - Current Category: ${context.currentCategory || "COMPLAINT"}
@@ -770,6 +1136,102 @@ ${sentimentBreakdown}
 
 **Verdict**: APPROVE
 Category change from ${context.currentCategory} to ${context.newCategory} is appropriate for Theme "${context.themeName}". All ${subThemeCount} sub-themes will be updated.`
+}
+
+function generateCrossParentMergeResponse(context: WisdomPromptContext): string {
+  const l1 = context.l1Name || "Zoom Meetings"
+  const l2 = context.l2Name || "Scheduling & Joining"
+  const l3 = context.l3Name || "Schedule a Meeting"
+  const source = context.sourceName || "Source Sub-theme"
+  const dest = context.destinationName || "Destination Sub-theme"
+  const sourceParent = context.sourceParentTheme || "Source Theme"
+  const destParent = context.destinationParentTheme || "Destination Theme"
+
+  return `**Operations Confidence**: High
+
+**Source SubTheme Taxonomy Path(s)**:
+- Parent Theme: ${sourceParent}
+- Path: ${l1} → ${l2} → ${l3} → ${sourceParent} → ${source}
+
+**Destination SubTheme Taxonomy Path(s)**:
+- Parent Theme: ${destParent}
+- Path: ${l1} → ${l2} → ${l3} → ${destParent} → ${dest}
+
+**Operation Evaluation**:
+- Same Parent Theme: **No**
+  - Source parent: "${sourceParent}"
+  - Destination parent: "${destParent}"
+- Constraint: Sub-themes can only be merged within the same parent theme
+
+**Cross-Parent Merge Constraint**:
+Sub-theme merges require both items to share the same parent theme. "${source}" belongs to "${sourceParent}" while "${dest}" belongs to "${destParent}". These are different parent themes.
+
+**Workaround**:
+To achieve the desired outcome, merge the parent themes first:
+1. Merge "${sourceParent}" into "${destParent}" (or vice versa)
+2. After the parent merge, both sub-themes will share the same parent
+3. Then merge the sub-themes as originally intended
+
+**Risks**:
+- Cannot merge sub-themes across parent themes
+- Parent theme merge is a high-impact operation affecting all sub-themes under both
+- Consider whether the parent themes are truly related before merging
+
+**Verdict**: REJECT
+Cannot merge sub-themes across parent themes. "${source}" is under "${sourceParent}" and "${dest}" is under "${destParent}". Merge the parent themes first.`
+}
+
+function generatePromoteSubThemeResponse(context: WisdomPromptContext): string {
+  const l1 = context.l1Name || "Zoom Meetings"
+  const l2 = context.l2Name || "Scheduling & Joining"
+  const l3 = context.l3Name || "Schedule a Meeting"
+  const parentTheme = context.parentThemeName || context.themeName || "Parent Theme"
+  const subThemeName = context.subThemeName || context.currentName || "Sub-theme"
+
+  return `**Operations Confidence**: Med
+
+**SubTheme Taxonomy Path(s)**:
+- Parent Theme: ${parentTheme}
+- Path: ${l1} → ${l2} → ${l3} → ${parentTheme} → ${subThemeName}
+
+**Promotion Assessment**:
+- Current Volume: 245 records
+- Breadth: Sufficient — sub-theme covers a broad enough topic for standalone theme status
+- Can support 3+ sub-themes: Yes — feedback patterns show 3-4 distinct subcategories
+- Semantic Alignment: "${subThemeName}" represents a concept distinct from parent "${parentTheme}"
+- Category Match: Feedback aligns with COMPLAINT category
+- Existing Theme Conflict: No — no semantically identical theme exists at theme level
+
+**Related Sub-themes**:
+- No other sub-themes under "${parentTheme}" should move with this one
+- Parent would retain 3 other sub-themes after promotion — still viable
+
+**Parent Impact**:
+- Current sub-theme count under "${parentTheme}": 4
+- After promotion: 3 sub-themes remain
+- Parent viability: Maintained
+
+**Guardrail Checks**:
+- ✓ Volume sufficient for standalone theme (245 records)
+- ✓ Distinct concept from parent theme
+- ✓ Can support 3+ sub-themes
+- ✓ No existing theme conflict
+- ⚠ Direct promotion not available — requires creating a new theme
+
+**Risks**:
+- Direct sub-theme promotion is not a supported operation
+- Must create a new theme and migrate feedback
+- Category must be explicitly assigned to the new theme
+- Historical data attribution may shift
+
+**Workaround**:
+Create a new theme "${subThemeName}" under the same L3 keyword, then:
+1. The new theme will capture future feedback matching this pattern
+2. Existing records will redistribute during the next backfill cycle
+3. The original sub-theme can be archived after records migrate
+
+**Verdict**: WORKAROUND
+Cannot promote directly. Create a new theme "${subThemeName}" instead. The sub-theme has sufficient volume (245 records) and breadth for standalone theme status.`
 }
 
 function getSentimentBreakdown(currentCategory?: string, newCategory?: string): string {

@@ -12,6 +12,7 @@ export type TaxonomyOperationType =
   | "change-theme-category"
   | "rename-theme"
   | "delete-keyword"
+  | "promote-subtheme"
 
 export type OperationRisk = "Low" | "Medium" | "High"
 
@@ -72,6 +73,11 @@ export const OPERATION_CONFIGS: Record<TaxonomyOperationType, OperationConfig> =
     risk: "Medium",
     description: "Delete a keyword (L3) from the taxonomy",
   },
+  "promote-subtheme": {
+    type: "promote-subtheme",
+    risk: "High",
+    description: "Promote a sub-theme to a standalone theme",
+  },
 }
 
 export interface WisdomPromptContext {
@@ -82,6 +88,8 @@ export interface WisdomPromptContext {
   // For merge operations
   sourceName?: string
   destinationName?: string
+  sourceParentTheme?: string
+  destinationParentTheme?: string
 
   // For category changes
   currentCategory?: "COMPLAINT" | "IMPROVEMENT" | "PRAISE" | "HELP"
@@ -136,6 +144,8 @@ export function generateWisdomPrompt(
       return generateRenameThemePrompt(context)
     case "delete-keyword":
       return generateDeleteKeywordPrompt(context)
+    case "promote-subtheme":
+      return generatePromoteSubThemePrompt(context)
     default:
       return generateGenericPrompt(context)
   }
@@ -780,6 +790,68 @@ Return your response STRICTLY in this format:
 [One-line rationale]`
 }
 
+function generatePromoteSubThemePrompt(context: WisdomPromptContext): string {
+  return `Analyze the following promote request:
+
+SubTheme: ${context.subThemeName || context.currentName || "[SUBTHEME_NAME]"}
+Parent Theme: ${context.parentThemeName || context.themeName || "[PARENT_THEME_NAME]"}
+
+The user wants to promote this sub-theme to a standalone theme.
+
+Perform the following checks:
+
+1. **Taxonomy Path Lookup**: Find ALL taxonomy paths for this sub-theme.
+
+2. **Semantic Alignment Check**:
+   - Is this sub-theme broad enough to be a standalone theme?
+   - Can it support 3+ sub-themes of its own?
+   - Does it represent a distinct concept separate from its parent theme?
+
+3. **Category Match**:
+   - What category (COMPLAINT/IMPROVEMENT/PRAISE/HELP) does the feedback align with?
+   - Does the feedback sentiment match the proposed category?
+
+4. **Volume Assessment**: What is the record volume? (Themes should have significant volume)
+
+5. **Related Sub-themes Check**:
+   - Are there other sub-themes under the same parent that should move with it?
+   - Would promoting this sub-theme leave the parent theme hollow?
+
+6. **Existing Theme Conflict**:
+   - Does a semantically similar theme already exist at the theme level?
+   - Should this be merged into an existing theme instead?
+
+7. **Parent Impact**:
+   - How many sub-themes remain under the parent after promotion?
+   - Would the parent theme still be viable?
+
+Return your response STRICTLY in this format:
+
+**Operations Confidence**: [High/Med/Low]
+
+**SubTheme Taxonomy Path(s)**:
+- Parent Theme: [Theme Name]
+- Path: [L1] → [L2] → [L3] → [Theme] → [SubTheme]
+
+**Promotion Assessment**:
+- Current Volume: [X records]
+- Breadth: [Sufficient/Too Narrow for standalone theme]
+- Can support 3+ sub-themes: [Yes/No]
+- Existing Theme Conflict: [Yes/No]
+- Parent Impact: [X sub-themes remain]
+
+**Risks**:
+- Direct promotion not supported — requires creating a new theme
+- Category assignment needed
+- Parent theme may be left hollow
+
+**Verdict**: [APPROVE / REJECT / WORKAROUND]
+[One-line rationale]
+
+**Workaround** (if Verdict is WORKAROUND):
+Recommend creating a new theme instead using available operations.`
+}
+
 function generateGenericPrompt(context: WisdomPromptContext): string {
   return `Analyze the following taxonomy change request:
 
@@ -832,6 +904,10 @@ export function inferOperationType(
 
   if (lowerAction.includes("split")) {
     if (nodeLevel === "SubTheme") return "split-subtheme"
+  }
+
+  if (lowerAction.includes("promote") || lowerAction.includes("transfer")) {
+    if (nodeLevel === "SubTheme") return "promote-subtheme"
   }
 
   if (lowerAction.includes("create") || lowerAction.includes("add") || lowerAction.includes("new")) {

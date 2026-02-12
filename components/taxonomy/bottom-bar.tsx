@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown, Layers, CheckCircle2, AlertTriangle } from "lucide-react"
@@ -25,13 +25,19 @@ export function BottomBar() {
     highRiskReview,
     acceptHighRiskReview,
     rejectHighRiskReview,
-    acceptDraftChange,
-    setDraftResolution,
     acceptWorkaround,
+    setDraftResolution,
     addDraftChange,
+    buildNodePath,
+    currentNavIds,
+    setSelectedL1Id,
+    setSelectedL2Id,
+    setSelectedL3Id,
+    cardDisplayMode,
   } = useTaxonomy()
 
   const [shouldRender, setShouldRender] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
   const isClosing = shouldRender && !isEditMode
 
   useEffect(() => {
@@ -47,12 +53,26 @@ export function BottomBar() {
     }
   }, [isClosing])
 
+  // Collapse when all changes are removed
+  useEffect(() => {
+    if (draftChanges.length === 0 && isBottomBarExpanded) {
+      setIsBottomBarExpanded(false)
+    }
+  }, [draftChanges.length, isBottomBarExpanded, setIsBottomBarExpanded])
+
   // Auto-expand when high-risk review starts
   useEffect(() => {
     if (highRiskReview) {
       setIsBottomBarExpanded(true)
     }
   }, [highRiskReview, setIsBottomBarExpanded])
+
+  // Auto-accept APPROVE verdicts — add to drafts without user action
+  useEffect(() => {
+    if (highRiskReview?.analysis.verdict === "APPROVE") {
+      acceptHighRiskReview()
+    }
+  }, [highRiskReview?.analysis.verdict, acceptHighRiskReview])
 
   const handleDiscard = () => {
     discardAllChanges()
@@ -91,9 +111,6 @@ export function BottomBar() {
     ? draftChanges.find((c) => c.id === selectedChangeId)
     : null
 
-  // Determine if right panel should show
-  const showRightPanel = isBottomBarExpanded && (selectedChange || highRiskReview)
-
   // Status summary for B1 header
   const totalApproved = analysisStats.pass
   const totalNeedsReview = analysisStats.warn + analysisStats.fail
@@ -108,24 +125,44 @@ export function BottomBar() {
       style={{ gridTemplateRows: isEditMode ? '1fr' : '0fr' }}
     >
       <div className="overflow-hidden">
-        <div className={`bg-background border-t border-border ${
-          isClosing
-            ? 'animate-[slideDown_250ms_var(--ease-spring)_forwards]'
-            : 'animate-[slideUp_250ms_var(--ease-spring)]'
-        }`}>
+        <div
+          ref={barRef}
+          className={cn(
+            "bg-background border-t border-border",
+            isClosing
+              ? 'animate-[slideDown_250ms_var(--ease-spring)_forwards]'
+              : 'animate-[slideUp_250ms_var(--ease-spring)]',
+          )}
+        >
         {/* B1 Header row */}
         <div
-          className="px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
-          onClick={() => setIsBottomBarExpanded(!isBottomBarExpanded)}
+          className={cn(
+            "px-6 py-3 flex items-center justify-between transition-colors",
+            draftChanges.length > 0 ? "cursor-pointer hover:bg-muted/30" : "cursor-default"
+          )}
+          onClick={() => {
+            if (draftChanges.length > 0) {
+              setIsBottomBarExpanded(!isBottomBarExpanded)
+            } else {
+              barRef.current?.animate(
+                [
+                  { transform: 'translateY(0)' },
+                  { transform: 'translateY(-6px)' },
+                  { transform: 'translateY(0)' },
+                ],
+                { duration: 400, easing: 'ease-out' }
+              )
+            }
+          }}
         >
           <div className="flex items-center gap-3">
             <Layers className="w-4 h-4 text-muted-foreground" />
             <div className="flex flex-col">
-              {draftChanges.length > 0 && (
-                <span className="text-sm font-medium text-foreground">
-                  {draftChanges.length} {draftChanges.length === 1 ? "change" : "changes"}
-                </span>
-              )}
+              <span className={cn("text-sm font-medium", draftChanges.length > 0 ? "text-foreground" : "text-muted-foreground")}>
+                {draftChanges.length === 0
+                  ? "No changes yet"
+                  : `${draftChanges.length} ${draftChanges.length === 1 ? "change" : "changes"}`}
+              </span>
               {/* B1 status summary line */}
               {hasStatusInfo && (
                 <div className="flex items-center gap-3 mt-0.5">
@@ -203,7 +240,7 @@ export function BottomBar() {
               {/* Left panel (B2): Change list */}
               <div className={cn(
                 "overflow-y-auto px-4 py-3 transition-all duration-300 shrink-0",
-                showRightPanel ? "w-1/3 border-r border-border" : "w-full"
+                "w-1/3 border-r border-border"
               )}>
                 {Object.entries(groupedChanges).length === 0 && !highRiskReview ? (
                   <p className="text-sm text-muted-foreground py-2">No changes yet</p>
@@ -239,6 +276,7 @@ export function BottomBar() {
                           onClick={() => setSelectedChangeId(
                             selectedChangeId === firstChangeId ? null : firstChangeId || null
                           )}
+                          displayMode={cardDisplayMode}
                         />
                       )
                     })}
@@ -249,14 +287,15 @@ export function BottomBar() {
               {/* Right panel (B3): Agent analysis or high-risk review */}
               <div className={cn(
                 "bg-muted/5 transition-all duration-300 overflow-hidden",
-                showRightPanel ? "w-2/3" : "w-0"
+                "w-2/3"
               )}>
                 {highRiskReview && !selectedChangeId ? (
                   <HighRiskReviewCard
                     review={highRiskReview}
-                    onAccept={acceptHighRiskReview}
-                    onReject={rejectHighRiskReview}
+                    onAcceptWorkaround={acceptWorkaround}
                     onDismiss={() => {
+                      const path = buildNodePath()
+                      const navIds = currentNavIds()
                       // Add pending diff to drafts with 'dismissed' resolution
                       highRiskReview.pendingDiff.forEach((item) => {
                         const base = {
@@ -266,6 +305,8 @@ export function BottomBar() {
                           agentAnalysis: highRiskReview.analysis,
                           operationDescription: highRiskReview.operationDescription,
                           resolution: 'dismissed' as const,
+                          nodePath: path,
+                          nodeNavIds: navIds,
                         }
                         if (item.type === "deleted") {
                           addDraftChange({ ...base, field: "delete-keyword", oldValue: item.nodeName, newValue: "[DELETED]" })
@@ -280,6 +321,8 @@ export function BottomBar() {
                       rejectHighRiskReview()
                     }}
                     onContactEnterpret={() => {
+                      const path = buildNodePath()
+                      const navIds = currentNavIds()
                       // Add pending diff to drafts with 'contacted' resolution
                       highRiskReview.pendingDiff.forEach((item) => {
                         const base = {
@@ -289,6 +332,8 @@ export function BottomBar() {
                           agentAnalysis: highRiskReview.analysis,
                           operationDescription: highRiskReview.operationDescription,
                           resolution: 'contacted' as const,
+                          nodePath: path,
+                          nodeNavIds: navIds,
                         }
                         if (item.type === "deleted") {
                           addDraftChange({ ...base, field: "delete-keyword", oldValue: item.nodeName, newValue: "[DELETED]" })
@@ -314,16 +359,18 @@ export function BottomBar() {
                       setDraftResolution(selectedChange.id, 'contacted')
                       setSelectedChangeId(null)
                     }}
-                    onAccept={() => {
-                      acceptDraftChange(selectedChange.id)
-                      setSelectedChangeId(null)
-                    }}
-                    onAcceptSuggestion={() => {
-                      acceptWorkaround(selectedChange.id)
-                      setSelectedChangeId(null)
+                    onPathClick={() => {
+                      const navIds = selectedChange.nodeNavIds
+                      if (navIds?.l1) setSelectedL1Id(navIds.l1)
+                      if (navIds?.l2) setSelectedL2Id(navIds.l2)
+                      if (navIds?.l3) setSelectedL3Id(navIds.l3)
                     }}
                   />
-                ) : null}
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <p className="text-sm">Select a change to see details</p>
+                  </div>
+                )}
               </div>
             </div>
 

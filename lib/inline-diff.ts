@@ -125,6 +125,8 @@ export function getActionType(field: string): ActionType {
       return "CREATE"
     case "move-keyword":
       return "MOVE"
+    case "merge-theme":
+      return "MERGE"
     case "name":
     case "description":
     default:
@@ -137,7 +139,7 @@ export function getActionType(field: string): ActionType {
  * Priority: DELETE > CREATE > MOVE > UPDATE
  */
 export function getGroupActionType(fields: string[]): ActionType {
-  const priority: ActionType[] = ["DELETE", "CREATE", "MOVE", "UPDATE"]
+  const priority: ActionType[] = ["DELETE", "MERGE", "SPLIT", "CREATE", "MOVE", "UPDATE"]
   const actions = fields.map(getActionType)
   for (const action of priority) {
     if (actions.includes(action)) return action

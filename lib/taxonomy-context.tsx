@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { sampleTaxonomyData, type TaxonomyData, type TaxonomyNode } from "./taxonomy-data"
 import { type TaxonomyOperationType, type WisdomPromptContext } from "./wisdom-prompts"
 import { queryWisdom } from "./wisdom-client"
@@ -10,6 +10,7 @@ import {
   parseWisdomToAnalysis,
   buildDiffFromContext,
   buildOperationDescription,
+  buildWorkaroundDraftChanges,
 } from "./agent-utils"
 
 export type { AgentAnalysis, LinterStatus }
@@ -27,6 +28,8 @@ export interface DraftChange {
   operationDescription?: string
   userAccepted?: boolean
   resolution?: 'dismissed' | 'contacted' | 'workaround-accepted'
+  nodePath?: string
+  nodeNavIds?: { l1?: string; l2?: string; l3?: string }
 }
 
 export interface AgentDiffItem {
@@ -42,14 +45,14 @@ export interface AgentDiffItem {
 
 export interface AgentContext {
   selectedNode: TaxonomyNode | null
-  nodeLevel: "L1" | "L2" | "L3" | null
+  nodeLevel: "L1" | "L2" | "L3" | "Theme" | null
   operationType: TaxonomyOperationType
   wisdomContext: WisdomPromptContext
 }
 
 export interface HighRiskReviewState {
   node: TaxonomyNode
-  level: "L1" | "L2" | "L3"
+  level: "L1" | "L2" | "L3" | "Theme"
   operationType: TaxonomyOperationType
   wisdomContext: WisdomPromptContext
   pendingDiff: AgentDiffItem[]
@@ -58,6 +61,7 @@ export interface HighRiskReviewState {
 }
 
 export type SortType = "name-asc" | "name-desc" | "count-asc" | "count-desc"
+export type CardDisplayMode = "bars" | "chips"
 
 interface TaxonomyContextType {
   // Data
@@ -84,12 +88,11 @@ interface TaxonomyContextType {
 
   acceptDraftChange: (changeId: string) => void
   setDraftResolution: (changeId: string, resolution: 'dismissed' | 'contacted' | 'workaround-accepted') => void
-  acceptWorkaround: (changeId: string) => void
 
   // New: Linter-style draft change management
   addDraftChangeWithAnalysis: (
     node: TaxonomyNode,
-    level: "L1" | "L2" | "L3",
+    level: "L1" | "L2" | "L3" | "Theme",
     operationType: TaxonomyOperationType,
     wisdomContext?: Partial<WisdomPromptContext>
   ) => void
@@ -99,12 +102,13 @@ interface TaxonomyContextType {
   highRiskReview: HighRiskReviewState | null
   initiateHighRiskReview: (
     node: TaxonomyNode,
-    level: "L1" | "L2" | "L3",
+    level: "L1" | "L2" | "L3" | "Theme",
     operationType: TaxonomyOperationType,
     wisdomContext?: Partial<WisdomPromptContext>
   ) => void
   acceptHighRiskReview: () => void
   rejectHighRiskReview: () => void
+  acceptWorkaround: () => void
 
   // New: Change selection for split panel
   selectedChangeId: string | null
@@ -126,6 +130,8 @@ interface TaxonomyContextType {
   getSelectedNode: () => TaxonomyNode | undefined
   getL2Nodes: () => TaxonomyNode[]
   getL3Nodes: () => TaxonomyNode[]
+  buildNodePath: () => string
+  currentNavIds: () => { l1?: string; l2?: string; l3?: string }
 
   // Search
   searchQuery: string
@@ -137,6 +143,9 @@ interface TaxonomyContextType {
   setSortL1: (sort: SortType) => void
   setSortL2: (sort: SortType) => void
   setSortL3: (sort: SortType) => void
+
+  cardDisplayMode: CardDisplayMode
+  setCardDisplayMode: (mode: CardDisplayMode) => void
 }
 
 const TaxonomyContext = createContext<TaxonomyContextType | undefined>(undefined)
@@ -204,6 +213,21 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const [sortL1, setSortL1] = useState<SortType>("count-desc")
   const [sortL2, setSortL2] = useState<SortType>("count-desc")
   const [sortL3, setSortL3] = useState<SortType>("count-desc")
+
+  // Card display mode — persisted to localStorage
+  const [cardDisplayMode, setCardDisplayModeInternal] = useState<CardDisplayMode>("chips")
+
+  useEffect(() => {
+    const stored = localStorage.getItem("taxonomy-card-display-mode")
+    if (stored === "bars" || stored === "chips") {
+      setCardDisplayModeInternal(stored)
+    }
+  }, [])
+
+  const setCardDisplayMode = useCallback((mode: CardDisplayMode) => {
+    setCardDisplayModeInternal(mode)
+    localStorage.setItem("taxonomy-card-display-mode", mode)
+  }, [])
 
   // High-risk review state
   const [highRiskReview, setHighRiskReview] = useState<HighRiskReviewState | null>(null)
@@ -280,6 +304,32 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     return l2Node?.children?.find((n) => n.id === selectedL3Id)
   }, [selectedL1Id, selectedL2Id, selectedL3Id, taxonomyData])
 
+  const buildNodePath = useCallback((): string => {
+    const parts: string[] = []
+    if (selectedL1Id) {
+      const l1 = taxonomyData.level1.find(n => n.id === selectedL1Id)
+      if (l1) parts.push(l1.name)
+    }
+    if (selectedL2Id) {
+      const l1 = taxonomyData.level1.find(n => n.id === selectedL1Id)
+      const l2 = l1?.children?.find(n => n.id === selectedL2Id)
+      if (l2) parts.push(l2.name)
+    }
+    if (selectedL3Id) {
+      const l1 = taxonomyData.level1.find(n => n.id === selectedL1Id)
+      const l2 = l1?.children?.find(n => n.id === selectedL2Id)
+      const l3 = l2?.children?.find(n => n.id === selectedL3Id)
+      if (l3) parts.push(l3.name)
+    }
+    return parts.join(" > ")
+  }, [selectedL1Id, selectedL2Id, selectedL3Id, taxonomyData])
+
+  const currentNavIds = useCallback(() => ({
+    l1: selectedL1Id || undefined,
+    l2: selectedL2Id || undefined,
+    l3: selectedL3Id || undefined,
+  }), [selectedL1Id, selectedL2Id, selectedL3Id])
+
   // Draft change management
   const addDraftChange = useCallback((change: Omit<DraftChange, "id" | "timestamp">): string => {
     const id = `change-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
@@ -329,35 +379,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const acceptWorkaround = useCallback((changeId: string) => {
-    setDraftChanges((prev) => {
-      const target = prev.find((c) => c.id === changeId)
-      if (!target || !target.agentAnalysis?.workaround) return prev
-      const workaroundText = target.agentAnalysis.workaround
-      // Mark original change(s) with workaround-accepted resolution
-      const updated = prev.map((c) =>
-        (c.id === changeId || (target.operationDescription && c.operationDescription === target.operationDescription))
-          ? { ...c, resolution: 'workaround-accepted' as const }
-          : c
-      )
-      // Create a new draft change representing the workaround
-      const newId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
-      const workaroundChange: DraftChange = {
-        id: newId,
-        nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        nodeName: target.nodeName,
-        nodeLevel: target.nodeLevel,
-        field: target.field,
-        oldValue: target.oldValue,
-        newValue: workaroundText,
-        timestamp: new Date(),
-        agentAnalysis: { ...target.agentAnalysis, status: 'pass' as const },
-        operationDescription: `Workaround: ${workaroundText.substring(0, 80)}`,
-      }
-      return [...updated, workaroundChange]
-    })
-  }, [])
-
   const discardAllChanges = useCallback(() => {
     setDraftChanges([])
     setIsBottomBarExpanded(false)
@@ -379,7 +400,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
   // Build wisdom context from node + partial context
   const buildWisdomContext = useCallback(
-    (node: TaxonomyNode, level: "L1" | "L2" | "L3", wisdomContext?: Partial<WisdomPromptContext>): WisdomPromptContext => {
+    (node: TaxonomyNode, level: "L1" | "L2" | "L3" | "Theme", wisdomContext?: Partial<WisdomPromptContext>): WisdomPromptContext => {
       return {
         currentName: node.name,
         l3Name: level === "L3" ? node.name : undefined,
@@ -390,14 +411,16 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  // Low/Medium risk: add draft change immediately, run analysis in background
+  // ALL edits go through agent review panel — no silent background path
+  // addDraftChangeWithAnalysis now routes through the same review flow as high-risk
   const addDraftChangeWithAnalysis = useCallback(
     (
       node: TaxonomyNode,
-      level: "L1" | "L2" | "L3",
+      level: "L1" | "L2" | "L3" | "Theme",
       operationType: TaxonomyOperationType,
       wisdomContext?: Partial<WisdomPromptContext>
     ) => {
+      // Route everything through the review panel
       const fullWisdomContext = buildWisdomContext(node, level, wisdomContext)
       const agentCtx: AgentContext = {
         selectedNode: node,
@@ -406,90 +429,43 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         wisdomContext: fullWisdomContext,
       }
 
-      // Build diff items and convert to draft changes
-      const diffItems = buildDiffFromContext(agentCtx)
+      const pendingDiff = buildDiffFromContext(agentCtx)
       const description = buildOperationDescription(agentCtx)
 
-      // Add each diff item as a draft change with analyzing status
-      const changeIds: string[] = []
-      diffItems.forEach((item) => {
-        let change: Omit<DraftChange, "id" | "timestamp">
-
-        if (item.type === "deleted") {
-          change = {
-            nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            nodeName: item.nodeName,
-            nodeLevel: item.nodeType,
-            field: "delete-keyword",
-            oldValue: item.nodeName,
-            newValue: "[DELETED]",
-            agentAnalysis: { status: "analyzing", operationType },
-            operationDescription: description,
-          }
-        } else if (item.type === "modified" && item.field) {
-          change = {
-            nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            nodeName: item.nodeName,
-            nodeLevel: item.nodeType,
-            field: item.field,
-            oldValue: item.oldValue || "",
-            newValue: item.newValue || "",
-            agentAnalysis: { status: "analyzing", operationType },
-            operationDescription: description,
-          }
-        } else if (item.type === "added") {
-          change = {
-            nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            nodeName: item.nodeName,
-            nodeLevel: item.nodeType,
-            field: "add-keyword",
-            oldValue: "",
-            newValue: item.nodeName,
-            agentAnalysis: { status: "analyzing", operationType },
-            operationDescription: description,
-          }
-        } else if (item.type === "moved") {
-          change = {
-            nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            nodeName: item.nodeName,
-            nodeLevel: item.nodeType,
-            field: "move-keyword",
-            oldValue: item.path || "",
-            newValue: item.movedTo || "",
-            agentAnalysis: { status: "analyzing", operationType },
-            operationDescription: description,
-          }
-        } else {
-          return
-        }
-
-        const id = addDraftChange(change)
-        changeIds.push(id)
+      setHighRiskReview({
+        node,
+        level,
+        operationType,
+        wisdomContext: fullWisdomContext,
+        pendingDiff,
+        analysis: { status: "analyzing", operationType },
+        operationDescription: description,
       })
 
-      // Fire Wisdom analysis in background
+      // Auto-expand bottom bar
+      setIsBottomBarExpanded(true)
+
+      // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
         const analysis = parseWisdomToAnalysis(wisdomResponse, operationType)
-        // Update all related draft changes with the analysis result
-        changeIds.forEach((id) => {
-          updateDraftAnalysis(id, analysis)
-        })
+        setHighRiskReview((prev) =>
+          prev ? { ...prev, analysis } : null
+        )
       }).catch((err) => {
         console.error("Wisdom analysis failed:", err)
-        const errorAnalysis: AgentAnalysis = { status: "error", operationType }
-        changeIds.forEach((id) => {
-          updateDraftAnalysis(id, errorAnalysis)
-        })
+        setHighRiskReview((prev) =>
+          prev ? { ...prev, analysis: { status: "error", operationType } } : null
+        )
       })
     },
-    [addDraftChange, updateDraftAnalysis, buildWisdomContext]
+    [buildWisdomContext]
   )
 
-  // High-risk: block until user accepts or rejects
+  // High-risk: block until user accepts or rejects (same flow, kept for API compatibility)
   const initiateHighRiskReview = useCallback(
     (
       node: TaxonomyNode,
-      level: "L1" | "L2" | "L3",
+      level: "L1" | "L2" | "L3" | "Theme",
       operationType: TaxonomyOperationType,
       wisdomContext?: Partial<WisdomPromptContext>
     ) => {
@@ -536,6 +512,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const acceptHighRiskReview = useCallback(() => {
     if (!highRiskReview) return
 
+    const path = buildNodePath()
+    const navIds = currentNavIds()
+
     // Convert pending diff to draft changes with the analysis attached
     highRiskReview.pendingDiff.forEach((item) => {
       if (item.type === "deleted") {
@@ -548,6 +527,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           newValue: "[DELETED]",
           agentAnalysis: highRiskReview.analysis,
           operationDescription: highRiskReview.operationDescription,
+          nodePath: path,
+          nodeNavIds: navIds,
         })
       } else if (item.type === "modified" && item.field) {
         addDraftChange({
@@ -559,6 +540,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           newValue: item.newValue || "",
           agentAnalysis: highRiskReview.analysis,
           operationDescription: highRiskReview.operationDescription,
+          nodePath: path,
+          nodeNavIds: navIds,
         })
       } else if (item.type === "added") {
         addDraftChange({
@@ -570,6 +553,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           newValue: item.nodeName,
           agentAnalysis: highRiskReview.analysis,
           operationDescription: highRiskReview.operationDescription,
+          nodePath: path,
+          nodeNavIds: navIds,
         })
       } else if (item.type === "moved") {
         addDraftChange({
@@ -581,16 +566,61 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           newValue: item.movedTo || "",
           agentAnalysis: highRiskReview.analysis,
           operationDescription: highRiskReview.operationDescription,
+          nodePath: path,
+          nodeNavIds: navIds,
         })
       }
     })
 
     setHighRiskReview(null)
-  }, [highRiskReview, addDraftChange])
+  }, [highRiskReview, addDraftChange, buildNodePath, currentNavIds])
 
   const rejectHighRiskReview = useCallback(() => {
     setHighRiskReview(null)
   }, [])
+
+  const acceptWorkaround = useCallback(() => {
+    if (!highRiskReview) return
+    const { analysis, node, level, wisdomContext, operationDescription } = highRiskReview
+
+    if (!analysis.workaroundType) return
+
+    const path = buildNodePath()
+    const navIds = currentNavIds()
+
+    const workaroundChanges = buildWorkaroundDraftChanges(
+      analysis.workaroundType,
+      wisdomContext,
+      node,
+      level,
+      operationDescription
+    )
+
+    // Add each workaround change as a pre-approved draft
+    workaroundChanges.forEach((change) => {
+      addDraftChange({
+        nodeId: `workaround-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        nodeName: change.nodeName,
+        nodeLevel: change.nodeLevel,
+        field: change.field,
+        oldValue: change.oldValue,
+        newValue: change.newValue,
+        agentAnalysis: {
+          status: "pass",
+          verdict: "APPROVE",
+          confidence: "High",
+          operationType: analysis.operationType,
+          summary: `Workaround accepted: ${change.operationDescription}`,
+        },
+        operationDescription: change.operationDescription,
+        resolution: 'workaround-accepted',
+        nodePath: path,
+        nodeNavIds: navIds,
+      })
+    })
+
+    setHighRiskReview(null)
+  }, [highRiskReview, addDraftChange, buildNodePath, currentNavIds])
 
   // Compute analysis stats
   const analysisStats = useMemo(() => {
@@ -629,7 +659,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         removeDraftChange,
         acceptDraftChange,
         setDraftResolution,
-        acceptWorkaround,
         discardAllChanges,
         applyChanges,
         addDraftChangeWithAnalysis,
@@ -638,6 +667,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         initiateHighRiskReview,
         acceptHighRiskReview,
         rejectHighRiskReview,
+        acceptWorkaround,
         selectedChangeId,
         setSelectedChangeId,
         analysisStats,
@@ -650,6 +680,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         getSelectedNode,
         getL2Nodes,
         getL3Nodes,
+        buildNodePath,
+        currentNavIds,
         searchQuery,
         setSearchQuery,
         sortL1,
@@ -658,6 +690,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSortL1,
         setSortL2,
         setSortL3,
+        cardDisplayMode,
+        setCardDisplayMode,
       }}
     >
       {children}
