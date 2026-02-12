@@ -176,14 +176,14 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
       <div className="flex-1 overflow-y-auto">
         {/* Diff block */}
         {showDiff && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="px-4 py-2.5">
             <DiffBlock oldValue={change.oldValue} newValue={change.newValue} />
           </div>
         )}
 
         {/* 1. Understanding */}
         {analysis.understanding && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="px-4 py-2.5">
             <div className="text-[10px] text-muted-foreground font-medium mb-1">
               Understanding
             </div>
@@ -195,7 +195,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {!!(analysis.recordCount != null && analysis.recordCount > 0 ||
           analysis.pathCount != null && analysis.pathCount > 0 ||
           (analysis.affectedPaths && analysis.affectedPaths.length > 0)) && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="px-4 py-2.5">
             <div className="text-[10px] text-muted-foreground font-medium mb-1.5">
               Impact
             </div>
@@ -247,7 +247,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 3. Assessment — verdict badge + summary */}
         {analysis.summary && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="px-4 py-2.5">
             <div className="text-[10px] text-muted-foreground font-medium mb-1">
               Assessment
             </div>
@@ -257,7 +257,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 4. Partial items — per-item inclusion list */}
         {analysis.verdict === "PARTIAL" && analysis.partialItems && analysis.partialItems.length > 0 && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="px-4 py-2.5">
             <div className="text-[10px] text-orange-700 font-medium mb-2">
               Item Eligibility
             </div>
@@ -285,7 +285,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {/* 5. Typed workaround — operation-specific UI */}
         {analysis.workaroundType && analysis.workaround && (
           <div className={cn(
-            "px-4 pt-3 pb-1",
+            "px-4 py-2.5",
             "bg-amber-50/50"
           )}>
             <div className="text-[10px] text-amber-700 font-medium mb-2">
@@ -348,7 +348,7 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
         {/* 6. Recommendation (generic — only when no typed workaround) */}
         {!analysis.workaroundType && (analysis.recommendation || analysis.workaround) && (
           <div className={cn(
-            "px-4 pt-3 pb-1",
+            "px-4 py-2.5",
             analysis.verdict === "WORKAROUND" && "bg-amber-50/50"
           )}>
             <div className={cn(
