@@ -34,6 +34,8 @@ export function BottomBar() {
     setSelectedL2Id,
     setSelectedL3Id,
     cardDisplayMode,
+    isReviewPaneOpen,
+    setIsReviewPaneOpen,
   } = useTaxonomy()
 
   const [shouldRender, setShouldRender] = useState(false)
@@ -135,6 +137,90 @@ export function BottomBar() {
 
   if (!shouldRender) return null
 
+  const isSidebarMode = cardDisplayMode === "sidebar"
+  const totalChanges = draftChanges.length + highRiskReviews.length
+
+  // Sidebar mode: thin persistent banner only
+  if (isSidebarMode) {
+    return (
+      <div
+        className="grid transition-[grid-template-rows] duration-[250ms] ease-spring"
+        style={{ gridTemplateRows: isEditMode ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div
+            ref={barRef}
+            className={cn(
+              "bg-background border-t border-border",
+              isClosing
+                ? 'animate-[slideDown_250ms_var(--ease-spring)_forwards]'
+                : 'animate-[slideUp_250ms_var(--ease-spring)]',
+            )}
+          >
+            <div className="px-6 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Layers className="w-4 h-4 text-muted-foreground" />
+                <span className={cn("text-sm font-medium", totalChanges > 0 ? "text-foreground" : "text-muted-foreground")}>
+                  {totalChanges === 0
+                    ? "No changes yet"
+                    : `${totalChanges} ${totalChanges === 1 ? "change" : "changes"}`}
+                </span>
+                {highRiskReviews.length > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {highRiskReviews.length === 1 ? "Review required" : `${highRiskReviews.length} reviews required`}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                {isReviewPaneOpen ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDiscard}
+                      className="text-muted-foreground"
+                    >
+                      Discard all
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveChanges}
+                      className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
+                    >
+                      Accept changes
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDiscard}
+                      className="text-muted-foreground"
+                    >
+                      Discard all
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsReviewPaneOpen(true)}
+                      disabled={totalChanges === 0}
+                      className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
+                    >
+                      Review Changes
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Default mode: full expandable bottom bar
   return (
     <div
       className="grid transition-[grid-template-rows] duration-[250ms] ease-spring"

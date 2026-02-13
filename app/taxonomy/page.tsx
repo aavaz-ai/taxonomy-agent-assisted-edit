@@ -1,6 +1,6 @@
 "use client"
 
-import { TaxonomyProvider } from "@/lib/taxonomy-context"
+import { TaxonomyProvider, useTaxonomy } from "@/lib/taxonomy-context"
 import { Sidebar } from "@/components/taxonomy/sidebar"
 import { TaxonomyHeader } from "@/components/taxonomy/taxonomy-header"
 import { TaxonomyTree } from "@/components/taxonomy/taxonomy-tree"
@@ -8,6 +8,17 @@ import { DetailPane } from "@/components/taxonomy/detail-pane"
 import { BottomBar } from "@/components/taxonomy/bottom-bar"
 import { ConfirmationModal } from "@/components/taxonomy/confirmation-modal"
 import { DemoConsole } from "@/components/taxonomy/demo-console"
+import { ReviewSidebar } from "@/components/taxonomy/review-sidebar"
+
+function RightPane() {
+  const { cardDisplayMode, isReviewPaneOpen } = useTaxonomy()
+
+  if (cardDisplayMode === "sidebar" && isReviewPaneOpen) {
+    return <ReviewSidebar />
+  }
+
+  return <DetailPane />
+}
 
 function TaxonomyContent() {
   return (
@@ -26,8 +37,8 @@ function TaxonomyContent() {
             </div>
           </div>
 
-          {/* Right Detail Pane - Pane 3 */}
-          <DetailPane />
+          {/* Right Pane - Pane 3 (Detail or Review) */}
+          <RightPane />
         </div>
 
         <BottomBar />
