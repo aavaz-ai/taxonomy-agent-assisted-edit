@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, Loader2, CheckCircle2, XCircle, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react"
+import { AlertTriangle, Loader2, CheckCircle2, XCircle, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { HighRiskReviewState } from "@/lib/taxonomy-context"
@@ -10,6 +10,7 @@ import { SlackThreadMock } from "./slack-thread-mock"
 
 interface HighRiskReviewCardProps {
   review: HighRiskReviewState
+  reviewId?: string
   onDismiss?: () => void
   onContactEnterpret?: () => void
   onAcceptWorkaround?: () => void
@@ -33,7 +34,7 @@ function CheckItem({ label, status, detail }: { label: string; status: "pass" | 
   )
 }
 
-export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAcceptWorkaround }: HighRiskReviewCardProps) {
+export function HighRiskReviewCard({ review, reviewId, onDismiss, onContactEnterpret, onAcceptWorkaround }: HighRiskReviewCardProps) {
   const [showResearch, setShowResearch] = useState(false)
   const [showSlackThread, setShowSlackThread] = useState(false)
   const [showFullAnalysis, setShowFullAnalysis] = useState(false)
@@ -43,47 +44,36 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header — tone adapts to verdict */}
-      <div className={cn(
-        "px-4 py-3 border-b-2",
-        analysis.verdict === "APPROVE" ? "bg-green-50 border-green-400" :
-        analysis.verdict === "REJECT" ? "bg-red-50 border-red-400" :
-        "bg-amber-50 border-amber-400"
-      )}>
-        <div className="flex items-center gap-2 mb-2">
-          {analysis.verdict === "APPROVE" ? (
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-          ) : analysis.verdict === "REJECT" ? (
-            <XCircle className="w-4 h-4 text-red-600" />
-          ) : (
-            <ShieldAlert className="w-4 h-4 text-amber-600" />
-          )}
-          <span className={cn(
-            "text-xs font-semibold uppercase tracking-wide",
-            analysis.verdict === "APPROVE" ? "text-green-800" :
-            analysis.verdict === "REJECT" ? "text-red-800" :
-            "text-amber-800"
-          )}>
-            {analysis.verdict === "APPROVE" ? "Agent review" :
-             analysis.verdict === "REJECT" ? "Change blocked" :
-             "Review required"}
-          </span>
-        </div>
+      {/* Header — neutral, matches agent-analysis-panel */}
+      <div className="px-4 py-3 border-b border-border">
         <div className="text-sm font-medium text-foreground">
           {operationDescription}
         </div>
-        <p className={cn(
-          "text-xs mt-1",
-          analysis.verdict === "APPROVE" ? "text-green-700" :
-          analysis.verdict === "REJECT" ? "text-red-700" :
-          "text-amber-700"
-        )}>
-          {analysis.verdict === "APPROVE"
-            ? "Looks good — no conflicts detected."
-            : analysis.verdict === "REJECT"
-            ? "This operation cannot proceed as described."
-            : "This operation requires review before it can be added to your draft changes."}
-        </p>
+        {analysis.verdict && (
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={cn(
+              "text-xs font-medium px-2 py-0.5 rounded border",
+              analysis.verdict === "APPROVE" ? "bg-green-50 border-green-200 text-green-700" :
+              analysis.verdict === "REJECT" ? "bg-red-50 border-red-200 text-red-700" :
+              "bg-amber-50 border-amber-200 text-amber-700"
+            )}>
+              {analysis.verdict === "APPROVE" ? "Approved" :
+               analysis.verdict === "REJECT" ? "Rejected" :
+               analysis.verdict === "WORKAROUND" ? "Workaround" :
+               "Conditional"}
+            </span>
+            {analysis.confidence && (
+              <span className={cn(
+                "text-[10px]",
+                analysis.confidence === "High" ? "text-green-600" :
+                analysis.confidence === "Med" ? "text-amber-600" :
+                "text-red-600"
+              )}>
+                {analysis.confidence} confidence
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Loading state */}
@@ -113,7 +103,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
         <div className="flex-1 overflow-y-auto">
           {/* 1. Understanding */}
           {analysis.understanding && (
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-2.5">
               <div className="text-[10px] text-muted-foreground font-medium mb-1">
                 Understanding
               </div>
@@ -125,7 +115,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
           {!!(analysis.recordCount != null && analysis.recordCount > 0 ||
             analysis.pathCount != null && analysis.pathCount > 0 ||
             (analysis.affectedPaths && analysis.affectedPaths.length > 0)) && (
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-2.5">
               <div className="text-[10px] text-muted-foreground font-medium mb-1.5">
                 Impact
               </div>
@@ -148,7 +138,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
 
           {/* 2. Research — collapsible */}
           {!!(analysis.checks?.length) && (
-            <div className="border-b border-border">
+            <div>
               <button
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
                 onClick={() => setShowResearch(!showResearch)}
@@ -176,7 +166,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
           )}
 
           {/* 3. Assessment — verdict badge + summary */}
-          <div className="px-4 py-3 border-b border-border">
+          <div className="px-4 py-2.5">
             <div className="text-[10px] text-muted-foreground font-medium mb-1.5">
               Assessment
             </div>
@@ -206,20 +196,11 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
 
           {/* 4. Recommendation */}
           {(analysis.recommendation || analysis.workaround) && (
-            <div className={cn(
-              "px-4 py-3 border-b border-border",
-              analysis.verdict === "WORKAROUND" && "bg-amber-50/50"
-            )}>
-              <div className={cn(
-                "text-[10px] font-medium mb-1",
-                analysis.verdict === "WORKAROUND" ? "text-amber-700" : "text-muted-foreground"
-              )}>
+            <div className="px-4 py-2.5">
+              <div className="text-[10px] font-medium mb-1 text-muted-foreground">
                 Recommendation
               </div>
-              <p className={cn(
-                "text-xs leading-relaxed",
-                analysis.verdict === "WORKAROUND" ? "text-amber-800" : "text-foreground"
-              )}>
+              <p className="text-xs leading-relaxed text-foreground">
                 {analysis.workaround || analysis.recommendation}
               </p>
             </div>
@@ -227,7 +208,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
 
           {/* 5. Agent Thinking — collapsible raw response */}
           {analysis.fullResponse && (
-            <div className="border-b border-border">
+            <div>
               <button
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
                 onClick={() => setShowFullAnalysis(!showFullAnalysis)}
@@ -249,12 +230,7 @@ export function HighRiskReviewCard({ review, onDismiss, onContactEnterpret, onAc
 
       {/* Action buttons — hidden for clean APPROVE/High since no user action needed */}
       {!(analysis.verdict === "APPROVE" && analysis.confidence === "High") && (
-        <div className={cn(
-          "px-4 py-3 border-t shrink-0",
-          analysis.verdict === "APPROVE" ? "border-green-200 bg-green-50/30" :
-          analysis.verdict === "REJECT" ? "border-red-200 bg-red-50/30" :
-          "border-amber-200 bg-amber-50/30"
-        )}>
+        <div className="px-4 py-3 border-t border-border bg-background shrink-0">
           <div className="space-y-2">
             {showSlackThread ? (
               <SlackThreadMock

@@ -28,6 +28,7 @@ export interface DraftChange {
   operationDescription?: string
   userAccepted?: boolean
   resolution?: 'dismissed' | 'contacted' | 'workaround-accepted'
+  workaroundSteps?: string[]
   nodePath?: string
   nodeNavIds?: { l1?: string; l2?: string; l3?: string }
 }
@@ -51,6 +52,7 @@ export interface AgentContext {
 }
 
 export interface HighRiskReviewState {
+  id: string
   node: TaxonomyNode
   level: "L1" | "L2" | "L3" | "Theme"
   operationType: TaxonomyOperationType
@@ -98,17 +100,17 @@ interface TaxonomyContextType {
   ) => void
   updateDraftAnalysis: (changeId: string, analysis: AgentAnalysis) => void
 
-  // New: High-risk review
-  highRiskReview: HighRiskReviewState | null
+  // New: High-risk review (supports multiple concurrent reviews)
+  highRiskReviews: HighRiskReviewState[]
   initiateHighRiskReview: (
     node: TaxonomyNode,
     level: "L1" | "L2" | "L3" | "Theme",
     operationType: TaxonomyOperationType,
     wisdomContext?: Partial<WisdomPromptContext>
   ) => void
-  acceptHighRiskReview: () => void
-  rejectHighRiskReview: () => void
-  acceptWorkaround: () => void
+  acceptHighRiskReview: (reviewId: string) => void
+  rejectHighRiskReview: (reviewId: string) => void
+  acceptWorkaround: (reviewId: string) => void
 
   // New: Change selection for split panel
   selectedChangeId: string | null
@@ -250,8 +252,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("taxonomy-card-display-mode", mode)
   }, [])
 
-  // High-risk review state
-  const [highRiskReview, setHighRiskReview] = useState<HighRiskReviewState | null>(null)
+  // High-risk review state — supports multiple concurrent reviews
+  const [highRiskReviews, setHighRiskReviews] = useState<HighRiskReviewState[]>([])
 
   // Selected change for split panel
   const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null)
@@ -404,7 +406,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setDraftChanges([])
     setIsBottomBarExpanded(false)
     setSelectedChangeId(null)
-    setHighRiskReview(null)
+    setHighRiskReviews([])
     setCreatingNode(null)
   }, [])
 
@@ -415,7 +417,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setIsBottomBarExpanded(false)
     setIsConfirmModalOpen(false)
     setSelectedChangeId(null)
-    setHighRiskReview(null)
+    setHighRiskReviews([])
     setCreatingNode(null)
     setIsProcessing(true)
     setProcessingEstimate("2-3 hours")
@@ -500,8 +502,10 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
       const pendingDiff = buildDiffFromContext(agentCtx)
       const description = buildOperationDescription(agentCtx)
+      const reviewId = `review-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
 
-      setHighRiskReview({
+      const newReview: HighRiskReviewState = {
+        id: reviewId,
         node,
         level,
         operationType,
@@ -509,7 +513,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         pendingDiff,
         analysis: { status: "analyzing", operationType },
         operationDescription: description,
-      })
+      }
+
+      setHighRiskReviews((prev) => [newReview, ...prev])
 
       // Auto-expand bottom bar
       setIsBottomBarExpanded(true)
@@ -517,13 +523,13 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
         const analysis = parseWisdomToAnalysis(wisdomResponse, operationType)
-        setHighRiskReview((prev) =>
-          prev ? { ...prev, analysis } : null
+        setHighRiskReviews((prev) =>
+          prev.map((r) => r.id === reviewId ? { ...r, analysis } : r)
         )
       }).catch((err) => {
         console.error("Wisdom analysis failed:", err)
-        setHighRiskReview((prev) =>
-          prev ? { ...prev, analysis: { status: "error", operationType } } : null
+        setHighRiskReviews((prev) =>
+          prev.map((r) => r.id === reviewId ? { ...r, analysis: { status: "error", operationType } } : r)
         )
       })
     },
@@ -548,8 +554,10 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
       const pendingDiff = buildDiffFromContext(agentCtx)
       const description = buildOperationDescription(agentCtx)
+      const reviewId = `review-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
 
-      setHighRiskReview({
+      const newReview: HighRiskReviewState = {
+        id: reviewId,
         node,
         level,
         operationType,
@@ -557,7 +565,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         pendingDiff,
         analysis: { status: "analyzing", operationType },
         operationDescription: description,
-      })
+      }
+
+      setHighRiskReviews((prev) => [newReview, ...prev])
 
       // Auto-expand bottom bar
       setIsBottomBarExpanded(true)
@@ -565,13 +575,13 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
         const analysis = parseWisdomToAnalysis(wisdomResponse, operationType)
-        setHighRiskReview((prev) =>
-          prev ? { ...prev, analysis } : null
+        setHighRiskReviews((prev) =>
+          prev.map((r) => r.id === reviewId ? { ...r, analysis } : r)
         )
       }).catch((err) => {
         console.error("High-risk Wisdom analysis failed:", err)
-        setHighRiskReview((prev) =>
-          prev ? { ...prev, analysis: { status: "error", operationType } } : null
+        setHighRiskReviews((prev) =>
+          prev.map((r) => r.id === reviewId ? { ...r, analysis: { status: "error", operationType } } : r)
         )
       })
     },
@@ -600,14 +610,15 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     [creatingNode, initiateHighRiskReview]
   )
 
-  const acceptHighRiskReview = useCallback(() => {
-    if (!highRiskReview) return
+  const acceptHighRiskReview = useCallback((reviewId: string) => {
+    const review = highRiskReviews.find((r) => r.id === reviewId)
+    if (!review) return
 
     const path = buildNodePath()
     const navIds = currentNavIds()
 
     // Convert pending diff to draft changes with the analysis attached
-    highRiskReview.pendingDiff.forEach((item) => {
+    review.pendingDiff.forEach((item) => {
       if (item.type === "deleted") {
         addDraftChange({
           nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -616,8 +627,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           field: "delete-keyword",
           oldValue: item.nodeName,
           newValue: "[DELETED]",
-          agentAnalysis: highRiskReview.analysis,
-          operationDescription: highRiskReview.operationDescription,
+          agentAnalysis: review.analysis,
+          operationDescription: review.operationDescription,
           nodePath: path,
           nodeNavIds: navIds,
         })
@@ -629,8 +640,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           field: item.field,
           oldValue: item.oldValue || "",
           newValue: item.newValue || "",
-          agentAnalysis: highRiskReview.analysis,
-          operationDescription: highRiskReview.operationDescription,
+          agentAnalysis: review.analysis,
+          operationDescription: review.operationDescription,
           nodePath: path,
           nodeNavIds: navIds,
         })
@@ -642,8 +653,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           field: "add-keyword",
           oldValue: "",
           newValue: item.nodeName,
-          agentAnalysis: highRiskReview.analysis,
-          operationDescription: highRiskReview.operationDescription,
+          agentAnalysis: review.analysis,
+          operationDescription: review.operationDescription,
           nodePath: path,
           nodeNavIds: navIds,
         })
@@ -655,24 +666,25 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           field: "move-keyword",
           oldValue: item.path || "",
           newValue: item.movedTo || "",
-          agentAnalysis: highRiskReview.analysis,
-          operationDescription: highRiskReview.operationDescription,
+          agentAnalysis: review.analysis,
+          operationDescription: review.operationDescription,
           nodePath: path,
           nodeNavIds: navIds,
         })
       }
     })
 
-    setHighRiskReview(null)
-  }, [highRiskReview, addDraftChange, buildNodePath, currentNavIds])
+    setHighRiskReviews((prev) => prev.filter((r) => r.id !== reviewId))
+  }, [highRiskReviews, addDraftChange, buildNodePath, currentNavIds])
 
-  const rejectHighRiskReview = useCallback(() => {
-    setHighRiskReview(null)
+  const rejectHighRiskReview = useCallback((reviewId: string) => {
+    setHighRiskReviews((prev) => prev.filter((r) => r.id !== reviewId))
   }, [])
 
-  const acceptWorkaround = useCallback(() => {
-    if (!highRiskReview) return
-    const { analysis, node, level, wisdomContext, operationDescription } = highRiskReview
+  const acceptWorkaround = useCallback((reviewId: string) => {
+    const review = highRiskReviews.find((r) => r.id === reviewId)
+    if (!review) return
+    const { analysis, node, level, wisdomContext, operationDescription } = review
 
     if (!analysis.workaroundType) return
 
@@ -696,6 +708,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     const firstChange = workaroundChanges[0]
     const fullSteps = workaroundChanges.map(c => c.operationDescription).join(", then ")
     if (firstChange && lastChange) {
+      const allSteps = workaroundChanges.map(c => c.operationDescription)
       addDraftChange({
         nodeId: `workaround-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         nodeName: firstChange.nodeName,
@@ -711,14 +724,15 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           summary: workaroundChanges.length > 1 ? fullSteps : undefined,
         },
         operationDescription: lastChange.operationDescription,
+        workaroundSteps: allSteps.length > 1 ? allSteps : undefined,
         resolution: 'workaround-accepted',
         nodePath: path,
         nodeNavIds: navIds,
       })
     }
 
-    setHighRiskReview(null)
-  }, [highRiskReview, addDraftChange, buildNodePath, currentNavIds])
+    setHighRiskReviews((prev) => prev.filter((r) => r.id !== reviewId))
+  }, [highRiskReviews, addDraftChange, buildNodePath, currentNavIds])
 
   // Compute analysis stats
   const analysisStats = useMemo(() => {
@@ -761,7 +775,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         applyChanges,
         addDraftChangeWithAnalysis,
         updateDraftAnalysis,
-        highRiskReview,
+        highRiskReviews,
         initiateHighRiskReview,
         acceptHighRiskReview,
         rejectHighRiskReview,

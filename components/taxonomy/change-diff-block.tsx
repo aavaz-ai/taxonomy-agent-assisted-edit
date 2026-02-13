@@ -1,6 +1,6 @@
 "use client"
 
-import { Undo2 } from "lucide-react"
+import { Undo2, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -128,12 +128,14 @@ interface ChangeGroup {
 export function ChangeDiffBlock({
   group,
   onUndo,
+  onContactEnterpret,
   isSelected,
   onClick,
   displayMode = "chips",
 }: {
   group: ChangeGroup
   onUndo: (changeId: string) => void
+  onContactEnterpret?: (changeId: string) => void
   isSelected?: boolean
   onClick?: () => void
   displayMode?: CardDisplayMode
@@ -168,7 +170,7 @@ export function ChangeDiffBlock({
         isAnalyzing && "animate-pulse",
         isSelected && "ring-2 ring-[#2D7A7A]/40 border-[#2D7A7A] border-l-[3px]",
         !isSelected && "hover:border-muted-foreground/30",
-        isDimmed && "opacity-60",
+        isDimmed && "opacity-50",
       )}
       onClick={onClick}
     >
@@ -189,18 +191,50 @@ export function ChangeDiffBlock({
             isPass && <ActionChip action={action} />
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            group.changes.forEach((c) => onUndo(c.id))
-          }}
-          className="text-muted-foreground text-xs h-7 px-2 shrink-0"
-        >
-          <Undo2 className="w-3 h-3 mr-1" />
-          Undo
-        </Button>
+        {isDimmed ? (
+          <div className="flex items-center gap-1 shrink-0">
+            {onContactEnterpret && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const firstId = group.changes[0]?.id
+                  if (firstId) onContactEnterpret(firstId)
+                }}
+                className="text-muted-foreground text-xs h-7 px-2"
+              >
+                <MessageCircle className="w-3 h-3 mr-1" />
+                Contact Enterpret
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                group.changes.forEach((c) => onUndo(c.id))
+              }}
+              className="text-muted-foreground/60 text-[11px] h-6 px-1.5 shrink-0"
+            >
+              <Undo2 className="w-2.5 h-2.5 mr-0.5" />
+              Undo
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              group.changes.forEach((c) => onUndo(c.id))
+            }}
+            className="text-muted-foreground text-xs h-7 px-2 shrink-0"
+          >
+            <Undo2 className="w-3 h-3 mr-1" />
+            Undo
+          </Button>
+        )}
       </div>
 
       {/* Row 2: Level type */}
@@ -210,55 +244,58 @@ export function ChangeDiffBlock({
         </span>
       </div>
 
-      {/* Row 3-4: Diff preview + one-liner - only shown when NOT selected */}
+      {/* Row 3-4: Diff preview - only shown when NOT selected */}
       {!isSelected && (
         <div className="px-3 pb-2">
-          {action === "DELETE" && null}
-
-          {action === "CREATE" && (
-            <div className="bg-muted rounded-md px-3 py-1.5 text-xs">
-              <span className="text-emerald-700">+ {group.changes[0]?.newValue}</span>
-            </div>
-          )}
-
-          {action === "MOVE" && group.changes[0] && (
-            <div className="bg-muted rounded-md px-3 py-1.5 text-xs space-y-0.5">
-              <div><span className="text-red-700 line-through">{group.changes[0].oldValue}</span></div>
-              <div><span className="text-emerald-700">{group.changes[0].newValue}</span></div>
-            </div>
-          )}
-
-          {action === "MERGE" && group.changes[0] && (
-            <div className="bg-muted rounded-md px-3 py-1.5 text-xs">
-              <span className="text-muted-foreground">{group.changes[0].oldValue}</span>
-              <span className="text-muted-foreground mx-1">&rarr;</span>
-              <span className="text-blue-700">{group.changes[0].newValue}</span>
-            </div>
-          )}
-
-          {action === "UPDATE" &&
-            group.changes.slice(0, 1).map((change) => {
-              const rawSegments = computeInlineDiff(change.oldValue, change.newValue)
-              const segments = truncateDiffWithContext(rawSegments)
-              return (
-                <div key={change.id} className="space-y-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    {change.field}
-                  </span>
-                  <InlineDiffView segments={segments} />
+          {resolution === 'workaround-accepted' && firstChange?.workaroundSteps && firstChange.workaroundSteps.length > 1 ? (
+            /* Workaround: show numbered steps instead of standard diff */
+            <div className="bg-muted rounded-md px-3 py-2 text-xs space-y-1">
+              {firstChange.workaroundSteps.map((step, i) => (
+                <div key={i} className="text-muted-foreground leading-snug">
+                  <span className="text-muted-foreground/70 font-mono mr-1.5">{i + 1}.</span>
+                  {step}
                 </div>
-              )
-            })}
+              ))}
+            </div>
+          ) : (
+            <>
+              {action === "DELETE" && null}
 
-          {/* Analysis one-liner when available */}
-          {firstChange?.agentAnalysis?.summary && analysisStatus !== "analyzing" && (
-            <p className={cn(
-              "text-[11px] mt-1.5 leading-snug",
-              isWarn ? "text-amber-700" : "text-muted-foreground"
-            )}>
-              {firstChange.agentAnalysis.summary.substring(0, 100)}
-              {(firstChange.agentAnalysis.summary.length || 0) > 100 ? "..." : ""}
-            </p>
+              {action === "CREATE" && (
+                <div className="bg-muted rounded-md px-3 py-1.5 text-xs">
+                  <span className="text-emerald-700">+ {group.changes[0]?.newValue}</span>
+                </div>
+              )}
+
+              {action === "MOVE" && group.changes[0] && (
+                <div className="bg-muted rounded-md px-3 py-1.5 text-xs space-y-0.5">
+                  <div><span className="text-red-700 line-through">{group.changes[0].oldValue}</span></div>
+                  <div><span className="text-emerald-700">{group.changes[0].newValue}</span></div>
+                </div>
+              )}
+
+              {action === "MERGE" && group.changes[0] && (
+                <div className="bg-muted rounded-md px-3 py-1.5 text-xs">
+                  <span className="text-muted-foreground">{group.changes[0].oldValue}</span>
+                  <span className="text-muted-foreground mx-1">&rarr;</span>
+                  <span className="text-blue-700">{group.changes[0].newValue}</span>
+                </div>
+              )}
+
+              {action === "UPDATE" &&
+                group.changes.slice(0, 1).map((change) => {
+                  const rawSegments = computeInlineDiff(change.oldValue, change.newValue)
+                  const segments = truncateDiffWithContext(rawSegments)
+                  return (
+                    <div key={change.id} className="space-y-1">
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {change.field}
+                      </span>
+                      <InlineDiffView segments={segments} />
+                    </div>
+                  )
+                })}
+            </>
           )}
         </div>
       )}

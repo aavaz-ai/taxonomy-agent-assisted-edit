@@ -284,20 +284,17 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 5. Typed workaround — operation-specific UI */}
         {analysis.workaroundType && analysis.workaround && (
-          <div className={cn(
-            "px-4 py-2.5",
-            "bg-amber-50/50"
-          )}>
-            <div className="text-[10px] text-amber-700 font-medium mb-2">
+          <div className="px-4 py-2.5">
+            <div className="text-[10px] text-muted-foreground font-medium mb-2">
               Recommended Alternative
             </div>
             {analysis.workaroundType === "merge-parents" && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs">
-                  <Merge className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span className="text-amber-800 font-medium">Merge parent themes instead</span>
+                  <Merge className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-foreground font-medium">Merge parent themes instead</span>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p className="text-xs text-foreground leading-relaxed">
                   {analysis.workaround}
                 </p>
               </div>
@@ -305,10 +302,10 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
             {analysis.workaroundType === "create-theme" && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="w-3.5 h-3.5 flex items-center justify-center text-amber-700 font-bold shrink-0">+</span>
-                  <span className="text-amber-800 font-medium">Create a new theme</span>
+                  <span className="w-3.5 h-3.5 flex items-center justify-center text-muted-foreground font-bold shrink-0">+</span>
+                  <span className="text-foreground font-medium">Create a new theme</span>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p className="text-xs text-foreground leading-relaxed">
                   {analysis.workaround}
                 </p>
               </div>
@@ -316,28 +313,28 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
             {analysis.workaroundType === "move-to-parent" && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs">
-                  <ArrowRight className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span className="text-amber-800 font-medium">Move to a different parent</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-foreground font-medium">Move to a different parent</span>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p className="text-xs text-foreground leading-relaxed">
                   {analysis.workaround}
                 </p>
               </div>
             )}
             {analysis.workaroundType === "transfer-then-merge" && (
               <div className="space-y-2">
-                <div className="text-xs text-amber-800 font-medium">2-step operation:</div>
+                <div className="text-xs text-foreground font-medium">2-step operation:</div>
                 <div className="space-y-1.5 ml-1">
-                  <div className="flex items-center gap-2 text-xs text-amber-800">
-                    <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                  <div className="flex items-center gap-2 text-xs text-foreground">
+                    <span className="w-4 h-4 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
                     Transfer sub-theme to target parent
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-amber-800">
-                    <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                  <div className="flex items-center gap-2 text-xs text-foreground">
+                    <span className="w-4 h-4 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
                     Merge sub-themes within the same parent
                   </div>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed mt-1">
+                <p className="text-xs text-foreground leading-relaxed mt-1">
                   {analysis.workaround}
                 </p>
               </div>
@@ -347,20 +344,11 @@ export function AgentAnalysisPanel({ change, onDismiss, onContactEnterpret, onAc
 
         {/* 6. Recommendation (generic — only when no typed workaround) */}
         {!analysis.workaroundType && (analysis.recommendation || analysis.workaround) && (
-          <div className={cn(
-            "px-4 py-2.5",
-            analysis.verdict === "WORKAROUND" && "bg-amber-50/50"
-          )}>
-            <div className={cn(
-              "text-[10px] font-medium mb-1",
-              analysis.verdict === "WORKAROUND" ? "text-amber-700" : "text-muted-foreground"
-            )}>
+          <div className="px-4 py-2.5">
+            <div className="text-[10px] font-medium mb-1 text-muted-foreground">
               Recommendation
             </div>
-            <p className={cn(
-              "text-xs leading-relaxed",
-              analysis.verdict === "WORKAROUND" ? "text-amber-800" : "text-foreground"
-            )}>
+            <p className="text-xs leading-relaxed text-foreground">
               {analysis.workaround || analysis.recommendation}
             </p>
           </div>
