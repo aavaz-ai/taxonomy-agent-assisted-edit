@@ -363,7 +363,7 @@ function ChangeRow({
             <button
               onClick={(e) => { e.stopPropagation(); setIsThinkingOpen(!isThinkingOpen) }}
               className="p-0.5 rounded hover:bg-muted transition-colors"
-              title="Analysis"
+              title="View analysis"
             >
               <WisdomIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
             </button>
@@ -372,9 +372,9 @@ function ChangeRow({
         <OperationPill action={group.action} verdict={analysis?.verdict} isAnalyzing={isAnalyzing} resolution={resolution} />
       </div>
 
-      {/* Agent Thinking popover — absolute overlay */}
+      {/* Agent thinking popover */}
       {isThinkingOpen && analysis && (
-        <div className="absolute right-0 top-full z-50">
+        <div className="absolute right-3 top-10 z-50">
           <AgentThinkingPopover analysis={analysis} onClose={() => setIsThinkingOpen(false)} />
         </div>
       )}
@@ -447,25 +447,6 @@ function ChangeRow({
               >
                 Dismiss
               </button>
-              {analysis && !isAnalyzing && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsThinkingOpen(!isThinkingOpen) }}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-auto"
-                >
-                  <WisdomIcon className="w-3.5 h-3.5" />
-                  Analysis
-                </button>
-              )}
-            </div>
-          ) : analysis && !isAnalyzing ? (
-            <div className="flex justify-end mt-1.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); setIsThinkingOpen(!isThinkingOpen) }}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <WisdomIcon className="w-3.5 h-3.5" />
-                Analysis
-              </button>
             </div>
           ) : null}
 
@@ -517,7 +498,6 @@ function PendingReviewRow({
           ? <ChevronDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
           : <ChevronRight className="w-3.5 h-3.5 text-amber-600 shrink-0" />
         }
-        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
         <LevelBadge level={review.level} />
         <span className="text-sm text-foreground truncate flex-1">{review.node.name}</span>
         <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">

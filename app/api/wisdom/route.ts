@@ -56,6 +56,17 @@ function generateSimulatedWisdomResponse(
       confidence = "High"
       verdict = "APPROVE"
       risks = ["Minor: Records will remain mapped to the same entity with new name"]
+      // 0. Near-duplicate check (stem-level) against same-parent siblings
+      const nearDuplicateSubTheme = checkSiblingNearDuplicate(context.newName, context.siblingNames)
+      if (nearDuplicateSubTheme) {
+        verdict = "REJECT"
+        confidence = "High"
+        risks = [
+          `"${context.newName}" is semantically identical to existing sibling "${nearDuplicateSubTheme}"`,
+          "Renaming would create duplicate categorization",
+        ]
+        break
+      }
       // 1. Exact duplicate against cross-theme sub-themes
       const crossDuplicate = checkSiblingDuplicate(context.newName, context.crossThemeSubThemeNames)
       if (crossDuplicate) {
@@ -108,6 +119,17 @@ function generateSimulatedWisdomResponse(
       confidence = "High"
       verdict = "APPROVE"
       risks = ["Minor: All sub-themes will retain their mappings"]
+      // Near-duplicate check (stem-level) against sibling themes
+      const nearDuplicateTheme = checkSiblingNearDuplicate(context.newName, context.siblingThemes)
+      if (nearDuplicateTheme) {
+        verdict = "REJECT"
+        confidence = "High"
+        risks = [
+          `"${context.newName}" is semantically identical to existing sibling "${nearDuplicateTheme}"`,
+          "Renaming would create duplicate categorization",
+        ]
+        break
+      }
       const themeRenameOverlap = checkSiblingNameOverlap(context.newName, context.siblingThemes)
       if (themeRenameOverlap) {
         verdict = "WORKAROUND"
@@ -180,6 +202,9 @@ function generateSimulatedWisdomResponse(
       // Check if keyword has no themes
       const isEmptyKeyword = context.subThemeNames != null && context.subThemeNames.length === 0
 
+      // Simulate volume from context or use a default
+      const simulatedKeywordVolume = context.themeVolume || Math.floor(Math.random() * 800) + 100
+
       if (isEmptyKeyword) {
         confidence = "High"
         verdict = "APPROVE"
@@ -193,6 +218,16 @@ function generateSimulatedWisdomResponse(
           "Must remove from each parent path individually",
         ]
         workaround = "Remove this keyword from individual paths instead of deleting it entirely"
+      } else if (simulatedKeywordVolume > 500) {
+        // Hard REJECT — high-volume keyword, no workaround
+        confidence = "High"
+        verdict = "REJECT"
+        risks = [
+          `High-volume keyword (${simulatedKeywordVolume} records) — deletion would orphan hundreds of records`,
+          "All themes and sub-themes under this keyword would be permanently lost",
+          "Historical trend data cannot be recovered",
+        ]
+        // No workaround — this is a hard stop
       } else {
         confidence = "Low"
         verdict = "WORKAROUND"
@@ -726,6 +761,24 @@ Instead of deleting, consider:
 
 **Verdict**: WORKAROUND
 High-volume keyword (1,097 records) with 42% orphan risk. Merge with sibling keyword "Join via Link" to preserve scheduling feedback coverage.`
+}
+
+// Check if a new name is a near-duplicate of a sibling (stem-level word matching)
+function checkSiblingNearDuplicate(newName?: string, siblings?: string[]): string | null {
+  if (!newName || !siblings || siblings.length === 0) return null
+  const stopWords = new Set(["a","an","the","and","or","of","in","on","to","for","by","with","is","at","it","not"])
+  const stem = (w: string) => w.replace(/(ing|tion|ment|ness|ity|ies|es|s)$/i, "")
+  const newStems = newName.toLowerCase().split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w)).map(stem)
+  for (const sibling of siblings) {
+    const sibStems = sibling.toLowerCase().split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w)).map(stem)
+    const maxLen = Math.max(newStems.length, sibStems.length)
+    if (maxLen === 0) continue
+    const shared = newStems.filter(s => sibStems.includes(s))
+    if (shared.length / maxLen >= 0.8) return sibling
+  }
+  return null
 }
 
 // Check if a name is generic (other, misc, etc.)
