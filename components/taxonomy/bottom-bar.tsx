@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useTaxonomy } from "@/lib/taxonomy-context"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown, Layers, CheckCircle2, AlertTriangle } from "lucide-react"
@@ -22,7 +22,7 @@ export function BottomBar() {
     selectedChangeId,
     setSelectedChangeId,
     analysisStats,
-    highRiskReview,
+    highRiskReviews,
     acceptHighRiskReview,
     rejectHighRiskReview,
     acceptWorkaround,
@@ -37,6 +37,8 @@ export function BottomBar() {
   } = useTaxonomy()
 
   const [shouldRender, setShouldRender] = useState(false)
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
+  const [shakePending, setShakePending] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
   const isClosing = shouldRender && !isEditMode
 
@@ -60,28 +62,42 @@ export function BottomBar() {
     }
   }, [draftChanges.length, isBottomBarExpanded, setIsBottomBarExpanded])
 
-  // Auto-expand when high-risk review starts
+  // Auto-expand when high-risk reviews exist
   useEffect(() => {
-    if (highRiskReview) {
+    if (highRiskReviews.length > 0) {
       setIsBottomBarExpanded(true)
     }
-  }, [highRiskReview, setIsBottomBarExpanded])
+  }, [highRiskReviews.length, setIsBottomBarExpanded])
 
   // Auto-accept APPROVE verdicts — add to drafts without user action
   useEffect(() => {
-    if (highRiskReview?.analysis.verdict === "APPROVE") {
-      acceptHighRiskReview()
+    for (const review of highRiskReviews) {
+      if (review.analysis.verdict === "APPROVE") {
+        acceptHighRiskReview(review.id)
+      }
     }
-  }, [highRiskReview?.analysis.verdict, acceptHighRiskReview])
+  }, [highRiskReviews, acceptHighRiskReview])
+
+  // Auto-select first review if none selected
+  const activeReview = selectedReviewId
+    ? highRiskReviews.find((r) => r.id === selectedReviewId)
+    : highRiskReviews[0] || null
 
   const handleDiscard = () => {
     discardAllChanges()
     setIsEditMode(false)
   }
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = useCallback(() => {
+    if (highRiskReviews.length > 0) {
+      // Shake pending reviews to draw attention
+      setShakePending(true)
+      setIsBottomBarExpanded(true)
+      setTimeout(() => setShakePending(false), 600)
+      return
+    }
     setIsConfirmModalOpen(true)
-  }
+  }, [highRiskReviews.length, setIsBottomBarExpanded, setIsConfirmModalOpen])
 
   const handleUndo = (changeId: string) => {
     removeDraftChange(changeId)
@@ -188,10 +204,10 @@ export function BottomBar() {
             </div>
 
             {/* High risk indicator */}
-            {highRiskReview && (
+            {highRiskReviews.length > 0 && (
               <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-md">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                Review required
+                {highRiskReviews.length === 1 ? "Review required" : `${highRiskReviews.length} reviews required`}
               </span>
             )}
           </div>
@@ -216,7 +232,6 @@ export function BottomBar() {
                 handleSaveChanges()
               }}
               className="bg-[#2D7A7A] hover:bg-[#236363] text-white"
-              disabled={highRiskReview !== null}
             >
               Save changes
             </Button>
@@ -242,28 +257,33 @@ export function BottomBar() {
                 "overflow-y-auto px-4 py-3 transition-all duration-300 shrink-0",
                 "w-1/3 border-r border-border"
               )}>
-                {Object.entries(groupedChanges).length === 0 && !highRiskReview ? (
+                {Object.entries(groupedChanges).length === 0 && highRiskReviews.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-2">No changes yet</p>
                 ) : (
                   <div className="space-y-2">
-                    {/* High-risk pending review at top */}
-                    {highRiskReview && (
+                    {/* High-risk pending reviews at top — newest first */}
+                    {highRiskReviews.map((review) => (
                       <div
+                        key={review.id}
                         className={cn(
-                          "rounded-lg border-2 border-amber-400 bg-amber-50/60 px-3 py-2 cursor-pointer",
-                          !selectedChangeId && "ring-2 ring-amber-400/40"
+                          "rounded-lg border-2 border-amber-400 bg-amber-50/60 px-3 py-2 cursor-pointer transition-transform",
+                          (activeReview?.id === review.id && !selectedChangeId) && "ring-2 ring-amber-400/40",
+                          shakePending && "animate-[shake_0.5s_ease-in-out]"
                         )}
-                        onClick={() => setSelectedChangeId(null)}
+                        onClick={() => {
+                          setSelectedReviewId(review.id)
+                          setSelectedChangeId(null)
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span className="text-xs text-amber-800 font-medium">Pending review</span>
                         </div>
                         <p className="text-xs text-amber-700 mt-1 truncate">
-                          {highRiskReview.operationDescription}
+                          {review.operationDescription}
                         </p>
                       </div>
-                    )}
+                    ))}
 
                     {Object.entries(groupedChanges).map(([nodeId, group]) => {
                       const firstChangeId = group.changes[0]?.id
@@ -272,6 +292,9 @@ export function BottomBar() {
                           key={nodeId}
                           group={group}
                           onUndo={handleUndo}
+                          onContactEnterpret={(changeId) => {
+                            setDraftResolution(changeId, 'contacted')
+                          }}
                           isSelected={selectedChangeId === firstChangeId}
                           onClick={() => setSelectedChangeId(
                             selectedChangeId === firstChangeId ? null : firstChangeId || null
@@ -289,21 +312,23 @@ export function BottomBar() {
                 "bg-muted/5 transition-all duration-300 overflow-hidden",
                 "w-2/3"
               )}>
-                {highRiskReview && !selectedChangeId ? (
+                {activeReview && !selectedChangeId ? (
                   <HighRiskReviewCard
-                    review={highRiskReview}
-                    onAcceptWorkaround={acceptWorkaround}
+                    key={activeReview.id}
+                    review={activeReview}
+                    reviewId={activeReview.id}
+                    onAcceptWorkaround={() => acceptWorkaround(activeReview.id)}
                     onDismiss={() => {
                       const path = buildNodePath()
                       const navIds = currentNavIds()
                       // Add pending diff to drafts with 'dismissed' resolution
-                      highRiskReview.pendingDiff.forEach((item) => {
+                      activeReview.pendingDiff.forEach((item) => {
                         const base = {
                           nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                           nodeName: item.nodeName,
                           nodeLevel: item.nodeType,
-                          agentAnalysis: highRiskReview.analysis,
-                          operationDescription: highRiskReview.operationDescription,
+                          agentAnalysis: activeReview.analysis,
+                          operationDescription: activeReview.operationDescription,
                           resolution: 'dismissed' as const,
                           nodePath: path,
                           nodeNavIds: navIds,
@@ -318,19 +343,20 @@ export function BottomBar() {
                           addDraftChange({ ...base, field: "move-keyword", oldValue: item.path || "", newValue: item.movedTo || "" })
                         }
                       })
-                      rejectHighRiskReview()
+                      rejectHighRiskReview(activeReview.id)
+                      setSelectedReviewId(null)
                     }}
                     onContactEnterpret={() => {
                       const path = buildNodePath()
                       const navIds = currentNavIds()
                       // Add pending diff to drafts with 'contacted' resolution
-                      highRiskReview.pendingDiff.forEach((item) => {
+                      activeReview.pendingDiff.forEach((item) => {
                         const base = {
                           nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                           nodeName: item.nodeName,
                           nodeLevel: item.nodeType,
-                          agentAnalysis: highRiskReview.analysis,
-                          operationDescription: highRiskReview.operationDescription,
+                          agentAnalysis: activeReview.analysis,
+                          operationDescription: activeReview.operationDescription,
                           resolution: 'contacted' as const,
                           nodePath: path,
                           nodeNavIds: navIds,
@@ -345,7 +371,8 @@ export function BottomBar() {
                           addDraftChange({ ...base, field: "move-keyword", oldValue: item.path || "", newValue: item.movedTo || "" })
                         }
                       })
-                      rejectHighRiskReview()
+                      rejectHighRiskReview(activeReview.id)
+                      setSelectedReviewId(null)
                     }}
                   />
                 ) : selectedChange ? (

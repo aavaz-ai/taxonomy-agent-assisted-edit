@@ -2374,28 +2374,68 @@ export function getThemeDistribution(themes: Theme[]): { category: ThemeCategory
     .sort((a, b) => b.percentage - a.percentage)
 }
 
-// Search result for global theme/sub-theme search
+// Search result for global taxonomy search
 export interface SearchResult {
   name: string
   path: string
   l1Id: string
   l2Id: string
   l3Id: string
-  type: 'theme' | 'subtheme'
+  type: 'l1' | 'l2' | 'l3' | 'theme' | 'subtheme'
 }
 
-// Search across all themes and sub-themes in the taxonomy
+// Search across L1, L2, L3 levels and themes/sub-themes in the taxonomy
 export function searchAllThemes(taxonomyData: TaxonomyData, query: string): SearchResult[] {
   if (!query || query.length < 2) return []
 
   const lowerQuery = query.toLowerCase()
   const results: SearchResult[] = []
+  const MAX_RESULTS = 20
 
   for (const l1 of taxonomyData.level1) {
+    // Match L1 names
+    if (l1.name.toLowerCase().includes(lowerQuery)) {
+      results.push({
+        name: l1.name,
+        path: l1.name,
+        l1Id: l1.id,
+        l2Id: '',
+        l3Id: '',
+        type: 'l1',
+      })
+      if (results.length >= MAX_RESULTS) return results
+    }
+
     if (!l1.children) continue
     for (const l2 of l1.children) {
+      // Match L2 names
+      if (l2.name.toLowerCase().includes(lowerQuery)) {
+        results.push({
+          name: l2.name,
+          path: `${l1.name} > ${l2.name}`,
+          l1Id: l1.id,
+          l2Id: l2.id,
+          l3Id: '',
+          type: 'l2',
+        })
+        if (results.length >= MAX_RESULTS) return results
+      }
+
       if (!l2.children) continue
       for (const l3 of l2.children) {
+        // Match L3 names
+        if (l3.name.toLowerCase().includes(lowerQuery)) {
+          results.push({
+            name: l3.name,
+            path: `${l1.name} > ${l2.name} > ${l3.name}`,
+            l1Id: l1.id,
+            l2Id: l2.id,
+            l3Id: l3.id,
+            type: 'l3',
+          })
+          if (results.length >= MAX_RESULTS) return results
+        }
+
         if (!l3.themes) continue
         const basePath = `${l1.name} > ${l2.name} > ${l3.name}`
 
@@ -2409,7 +2449,7 @@ export function searchAllThemes(taxonomyData: TaxonomyData, query: string): Sear
               l3Id: l3.id,
               type: 'theme',
             })
-            if (results.length >= 20) return results
+            if (results.length >= MAX_RESULTS) return results
           }
 
           if (theme.children) {
@@ -2423,7 +2463,7 @@ export function searchAllThemes(taxonomyData: TaxonomyData, query: string): Sear
                   l3Id: l3.id,
                   type: 'subtheme',
                 })
-                if (results.length >= 20) return results
+                if (results.length >= MAX_RESULTS) return results
               }
             }
           }

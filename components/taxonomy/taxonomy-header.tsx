@@ -22,16 +22,45 @@ export function TaxonomyHeader() {
   }, [taxonomyData, searchQuery])
 
   const handleResultClick = (result: SearchResult) => {
-    setSelectedL1Id(result.l1Id)
-    // Use setTimeout to let the L1 state settle before setting L2/L3
-    setTimeout(() => {
-      setSelectedL2Id(result.l2Id)
+    if (result.type === 'l1') {
+      setSelectedL1Id(result.l1Id)
+    } else if (result.type === 'l2') {
+      setSelectedL1Id(result.l1Id)
+      setTimeout(() => setSelectedL2Id(result.l2Id), 0)
+    } else {
+      // l3, theme, subtheme — navigate to full L1 > L2 > L3 path
+      setSelectedL1Id(result.l1Id)
       setTimeout(() => {
-        setSelectedL3Id(result.l3Id)
+        setSelectedL2Id(result.l2Id)
+        setTimeout(() => {
+          setSelectedL3Id(result.l3Id)
+        }, 0)
       }, 0)
-    }, 0)
+    }
     setSearchQuery("")
     setIsDropdownOpen(false)
+  }
+
+  const typeLabels: Record<SearchResult['type'], string> = {
+    l1: 'L1',
+    l2: 'L2',
+    l3: 'L3',
+    theme: 'Theme',
+    subtheme: 'Sub-theme',
+  }
+
+  // Highlight matched substring in text
+  function highlightMatch(text: string, query: string) {
+    if (!query || query.length < 2) return text
+    const idx = text.toLowerCase().indexOf(query.toLowerCase())
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="bg-yellow-200/70 font-semibold">{text.slice(idx, idx + query.length)}</span>
+        {text.slice(idx + query.length)}
+      </>
+    )
   }
 
   const handleInputFocus = () => {
@@ -79,13 +108,18 @@ export function TaxonomyHeader() {
             ) : (
               searchResults.map((result, index) => (
                 <button
-                  key={`${result.l3Id}-${result.name}-${index}`}
+                  key={`${result.type}-${result.l1Id}-${result.l2Id}-${result.l3Id}-${result.name}-${index}`}
                   className={`w-full text-left px-3 py-2 hover:bg-muted/50 cursor-pointer ${index < searchResults.length - 1 ? "border-b border-border" : ""}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleResultClick(result)}
                 >
-                  <div className="text-xs text-muted-foreground">{result.path}</div>
-                  <div className="text-sm font-medium text-foreground">{result.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-muted-foreground flex-1">{result.path}</div>
+                    <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider shrink-0">
+                      {typeLabels[result.type]}
+                    </span>
+                  </div>
+                  <div className="text-sm font-medium text-foreground">{highlightMatch(result.name, searchQuery)}</div>
                 </button>
               ))
             )}
