@@ -410,6 +410,19 @@ function SettingsTab() {
               <div className="text-[10px] text-gray-500">Minimal — colored bars without text labels</div>
             </div>
           </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="consoleDisplayMode"
+              checked={cardDisplayMode === "sidebar"}
+              onChange={() => setCardDisplayMode("sidebar")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Sidebar</div>
+              <div className="text-[10px] text-gray-500">Minimal banner + right sidebar review</div>
+            </div>
+          </label>
         </div>
       </div>
     </div>

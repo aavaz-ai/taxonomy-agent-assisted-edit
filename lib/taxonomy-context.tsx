@@ -60,10 +60,11 @@ export interface HighRiskReviewState {
   pendingDiff: AgentDiffItem[]
   analysis: AgentAnalysis
   operationDescription: string
+  timestamp: Date
 }
 
 export type SortType = "name-asc" | "name-desc" | "count-asc" | "count-desc"
-export type CardDisplayMode = "bars" | "chips"
+export type CardDisplayMode = "bars" | "chips" | "sidebar"
 
 interface TaxonomyContextType {
   // Data
@@ -110,7 +111,7 @@ interface TaxonomyContextType {
   ) => void
   acceptHighRiskReview: (reviewId: string) => void
   rejectHighRiskReview: (reviewId: string) => void
-  acceptWorkaround: (reviewId: string) => void
+  acceptWorkaround: (reviewId: string, destinationName?: string) => void
 
   // New: Change selection for split panel
   selectedChangeId: string | null
@@ -148,6 +149,9 @@ interface TaxonomyContextType {
 
   cardDisplayMode: CardDisplayMode
   setCardDisplayMode: (mode: CardDisplayMode) => void
+
+  isReviewPaneOpen: boolean
+  setIsReviewPaneOpen: (open: boolean) => void
 
   // Node creation flow
   creatingNode: { level: "L1" | "L2" | "L3" } | null
@@ -239,10 +243,11 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
   // Card display mode — persisted to localStorage
   const [cardDisplayMode, setCardDisplayModeInternal] = useState<CardDisplayMode>("chips")
+  const [isReviewPaneOpen, setIsReviewPaneOpen] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("taxonomy-card-display-mode")
-    if (stored === "bars" || stored === "chips") {
+    if (stored === "bars" || stored === "chips" || stored === "sidebar") {
       setCardDisplayModeInternal(stored)
     }
   }, [])
@@ -250,6 +255,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const setCardDisplayMode = useCallback((mode: CardDisplayMode) => {
     setCardDisplayModeInternal(mode)
     localStorage.setItem("taxonomy-card-display-mode", mode)
+    if (mode === "sidebar") {
+      setIsReviewPaneOpen(false)
+    }
   }, [])
 
   // High-risk review state — supports multiple concurrent reviews
@@ -263,17 +271,20 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setSelectedL1IdInternal(id)
     setSelectedL2IdInternal(null)
     setSelectedL3IdInternal(null)
-  }, [])
+    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+  }, [cardDisplayMode])
 
   // When L2 changes, reset L3
   const setSelectedL2Id = useCallback((id: string | null) => {
     setSelectedL2IdInternal(id)
     setSelectedL3IdInternal(null)
-  }, [])
+    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+  }, [cardDisplayMode])
 
   const setSelectedL3Id = useCallback((id: string | null) => {
     setSelectedL3IdInternal(id)
-  }, [])
+    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+  }, [cardDisplayMode])
 
   const getL2Nodes = useCallback((): TaxonomyNode[] => {
     if (!selectedL1Id) return []
@@ -356,15 +367,27 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   // Draft change management
   const addDraftChange = useCallback((change: Omit<DraftChange, "id" | "timestamp">): string => {
     const id = `change-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
-    setDraftChanges((prev) => [
-      ...prev,
-      {
-        ...change,
-        id,
-        timestamp: new Date(),
-      },
-    ])
-    return id
+    let returnId = id
+    setDraftChanges((prev) => {
+      const existingIdx = prev.findIndex(
+        (c) => c.nodeId === change.nodeId && c.field === change.field
+      )
+      if (existingIdx >= 0) {
+        // Merge: keep original oldValue, update newValue and metadata
+        const updated = [...prev]
+        returnId = updated[existingIdx].id
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          newValue: change.newValue,
+          agentAnalysis: change.agentAnalysis,
+          operationDescription: change.operationDescription,
+          timestamp: new Date(),
+        }
+        return updated
+      }
+      return [...prev, { ...change, id, timestamp: new Date() }]
+    })
+    return returnId
   }, [])
 
   const removeDraftChange = useCallback((id: string) => {
@@ -513,12 +536,17 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         pendingDiff,
         analysis: { status: "analyzing", operationType },
         operationDescription: description,
+        timestamp: new Date(),
       }
 
-      setHighRiskReviews((prev) => [newReview, ...prev])
+      setHighRiskReviews((prev) => [...prev, newReview])
 
-      // Auto-expand bottom bar
-      setIsBottomBarExpanded(true)
+      // Auto-expand: review pane in sidebar mode, bottom bar otherwise
+      if (cardDisplayMode === "sidebar") {
+        setIsReviewPaneOpen(true)
+      } else {
+        setIsBottomBarExpanded(true)
+      }
 
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
@@ -533,7 +561,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         )
       })
     },
-    [buildWisdomContext]
+    [buildWisdomContext, cardDisplayMode]
   )
 
   // High-risk: block until user accepts or rejects (same flow, kept for API compatibility)
@@ -565,12 +593,17 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         pendingDiff,
         analysis: { status: "analyzing", operationType },
         operationDescription: description,
+        timestamp: new Date(),
       }
 
-      setHighRiskReviews((prev) => [newReview, ...prev])
+      setHighRiskReviews((prev) => [...prev, newReview])
 
-      // Auto-expand bottom bar
-      setIsBottomBarExpanded(true)
+      // Auto-expand: review pane in sidebar mode, bottom bar otherwise
+      if (cardDisplayMode === "sidebar") {
+        setIsReviewPaneOpen(true)
+      } else {
+        setIsBottomBarExpanded(true)
+      }
 
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
@@ -585,7 +618,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         )
       })
     },
-    [buildWisdomContext]
+    [buildWisdomContext, cardDisplayMode]
   )
 
   const commitCreatingNode = useCallback(
@@ -618,10 +651,13 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     const navIds = currentNavIds()
 
     // Convert pending diff to draft changes with the analysis attached
+    // Use the actual taxonomy node ID for deterministic grouping/merging
+    const nodeId = review.node.id
+
     review.pendingDiff.forEach((item) => {
       if (item.type === "deleted") {
         addDraftChange({
-          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeId,
           nodeName: item.nodeName,
           nodeLevel: item.nodeType,
           field: "delete-keyword",
@@ -634,7 +670,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         })
       } else if (item.type === "modified" && item.field) {
         addDraftChange({
-          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeId,
           nodeName: item.nodeName,
           nodeLevel: item.nodeType,
           field: item.field,
@@ -647,7 +683,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         })
       } else if (item.type === "added") {
         addDraftChange({
-          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeId,
           nodeName: item.nodeName,
           nodeLevel: item.nodeType,
           field: "add-keyword",
@@ -660,7 +696,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         })
       } else if (item.type === "moved") {
         addDraftChange({
-          nodeId: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          nodeId,
           nodeName: item.nodeName,
           nodeLevel: item.nodeType,
           field: "move-keyword",
@@ -681,7 +717,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setHighRiskReviews((prev) => prev.filter((r) => r.id !== reviewId))
   }, [])
 
-  const acceptWorkaround = useCallback((reviewId: string) => {
+  const acceptWorkaround = useCallback((reviewId: string, destinationName?: string) => {
     const review = highRiskReviews.find((r) => r.id === reviewId)
     if (!review) return
     const { analysis, node, level, wisdomContext, operationDescription } = review
@@ -692,7 +728,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     const navIds = currentNavIds()
 
     // Merge server-enriched workaround context into the client-side wisdomContext
-    const mergedContext = { ...wisdomContext, ...analysis.workaroundContext }
+    // If a destinationName was provided (e.g. from the keyword merge picker), overlay it
+    const mergedContext = { ...wisdomContext, ...analysis.workaroundContext, ...(destinationName ? { destinationName } : {}) }
 
     const workaroundChanges = buildWorkaroundDraftChanges(
       analysis.workaroundType,
@@ -719,8 +756,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         agentAnalysis: {
           ...analysis,
           status: "pass",
-          verdict: "APPROVE",
-          confidence: "High",
           summary: workaroundChanges.length > 1 ? fullSteps : undefined,
         },
         operationDescription: lastChange.operationDescription,
@@ -804,6 +839,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSortL3,
         cardDisplayMode,
         setCardDisplayMode,
+        isReviewPaneOpen,
+        setIsReviewPaneOpen,
         creatingNode,
         startCreatingNode,
         cancelCreatingNode,

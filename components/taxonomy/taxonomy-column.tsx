@@ -77,7 +77,7 @@ export function TaxonomyColumn({
 
   // Get analysis status color for node name
   const getNodeNameColor = (node: TaxonomyNode) => {
-    const nodeChanges = draftChanges.filter((c) => c.nodeName === node.name)
+    const nodeChanges = draftChanges.filter((c) => c.nodeId === node.id)
     if (nodeChanges.length === 0) return null
 
     const firstAnalysis = nodeChanges[0]?.agentAnalysis
@@ -136,11 +136,17 @@ export function TaxonomyColumn({
       {/* Node List */}
       <div className="flex-1 overflow-y-auto">
         {sortedNodes.map((node) => {
-          const nodeChanges = draftChanges.filter((c) => c.nodeName === node.name)
+          const nodeChanges = draftChanges.filter((c) => c.nodeId === node.id)
           const hasChanges = nodeChanges.length > 0
           const nameChange = nodeChanges.find((c) => c.field === "name")
           const displayName = nameChange ? nameChange.newValue : node.name
           const analysisColor = getNodeNameColor(node)
+
+          // Check for descendant changes (changes within this node's subtree, not directly on it)
+          const navKey = level === 1 ? "l1" : level === 2 ? "l2" : "l3"
+          const hasDescendantChanges = !hasChanges && draftChanges.some(
+            (c) => c.nodeNavIds?.[navKey] === node.id && c.nodeId !== node.id
+          )
 
           return (
             <div
@@ -155,13 +161,18 @@ export function TaxonomyColumn({
                 hasChanges && "border border-dashed border-[#2D7A7A]/40 rounded mx-2 border-l-2",
               )}
             >
-              <span className={cn(
-                "text-sm truncate pr-2",
-                selectedId === node.id && "font-medium",
-                analysisColor || (selectedId === node.id ? "text-[#2D7A7A]" : ""),
-              )}>
-                {displayName}
-              </span>
+              <div className="flex items-center gap-2 min-w-0">
+                {hasDescendantChanges && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2D7A7A] shrink-0" />
+                )}
+                <span className={cn(
+                  "text-sm truncate",
+                  selectedId === node.id && "font-medium",
+                  analysisColor || (selectedId === node.id ? "text-[#2D7A7A]" : ""),
+                )}>
+                  {displayName}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                 <FileText className="w-3 h-3" />
                 <span>{node.count.toLocaleString()}</span>

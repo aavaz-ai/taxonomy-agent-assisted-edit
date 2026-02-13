@@ -312,7 +312,7 @@ function extractRecommendation(response: string, verdict?: string, workaround?: 
   }
 
   // Fallback based on verdict
-  if (verdict === "APPROVE") return "This change looks safe to proceed."
+  if (verdict === "APPROVE") return ""
   if (verdict === "REJECT") return "This change cannot proceed as described. Contact Enterpret for assistance."
   if (verdict === "WORKAROUND" && workaround) return workaround
   return ""
