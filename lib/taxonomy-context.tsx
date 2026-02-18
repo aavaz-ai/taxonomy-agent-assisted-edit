@@ -64,7 +64,7 @@ export interface HighRiskReviewState {
 }
 
 export type SortType = "name-asc" | "name-desc" | "count-asc" | "count-desc"
-export type CardDisplayMode = "bars" | "chips" | "sidebar" | "topbar"
+export type CardDisplayMode = "bars" | "chips" | "sidebar" | "topbar" | "oneAtATime"
 export type ScanAnimMode = "aurora" | "depthScan" | "dithering"
 
 export interface ScanMessage {
@@ -251,12 +251,12 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const [sortL3, setSortL3] = useState<SortType>("count-desc")
 
   // Card display mode — persisted to localStorage
-  const [cardDisplayMode, setCardDisplayModeInternal] = useState<CardDisplayMode>("chips")
+  const [cardDisplayMode, setCardDisplayModeInternal] = useState<CardDisplayMode>("oneAtATime")
   const [isReviewPaneOpen, setIsReviewPaneOpen] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem("taxonomy-card-display-mode")
-    if (stored === "bars" || stored === "chips" || stored === "sidebar" || stored === "topbar") {
+    if (stored === "bars" || stored === "chips" || stored === "sidebar" || stored === "topbar" || stored === "oneAtATime") {
       setCardDisplayModeInternal(stored)
     }
   }, [])

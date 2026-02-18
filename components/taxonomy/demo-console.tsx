@@ -436,6 +436,19 @@ function SettingsTab() {
               <div className="text-[10px] text-gray-500">Badge in header — explicit opt-in review</div>
             </div>
           </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="consoleDisplayMode"
+              checked={cardDisplayMode === "oneAtATime"}
+              onChange={() => setCardDisplayMode("oneAtATime")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">One at a time</div>
+              <div className="text-[10px] text-gray-500">Inline review card — resolve each change before the next</div>
+            </div>
+          </label>
         </div>
       </div>
 
