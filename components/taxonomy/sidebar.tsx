@@ -38,7 +38,7 @@ export function Sidebar() {
   const { isProcessing } = useTaxonomy()
 
   return (
-    <div className="flex flex-col h-full w-[200px] bg-background border-r border-border">
+    <div className="flex flex-col h-full w-[200px] bg-white">
       {/* Logo */}
       <div className="flex items-center py-4 px-4">
         <div className="flex items-center gap-2 px-2">

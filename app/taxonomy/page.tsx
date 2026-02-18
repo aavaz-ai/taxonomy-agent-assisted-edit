@@ -1,50 +1,41 @@
 "use client"
 
-import { TaxonomyProvider, useTaxonomy } from "@/lib/taxonomy-context"
+import { TaxonomyProvider } from "@/lib/taxonomy-context"
 import { Sidebar } from "@/components/taxonomy/sidebar"
 import { TaxonomyHeader } from "@/components/taxonomy/taxonomy-header"
 import { TaxonomyTree } from "@/components/taxonomy/taxonomy-tree"
 import { DetailPane } from "@/components/taxonomy/detail-pane"
-import { BottomBar } from "@/components/taxonomy/bottom-bar"
-import { ConfirmationModal } from "@/components/taxonomy/confirmation-modal"
 import { DemoConsole } from "@/components/taxonomy/demo-console"
-import { ReviewSidebar } from "@/components/taxonomy/review-sidebar"
-
-function RightPane() {
-  const { cardDisplayMode, isReviewPaneOpen } = useTaxonomy()
-
-  if (cardDisplayMode === "sidebar" && isReviewPaneOpen) {
-    return <ReviewSidebar />
-  }
-
-  return <DetailPane />
-}
+import { ScanOverlay } from "@/components/taxonomy/scan-overlay"
+import { AgentScanCard } from "@/components/taxonomy/agent-message-feed"
 
 function TaxonomyContent() {
   return (
-    <div className="flex h-screen bg-[#F8F8F6]">
+    <div className="flex h-screen bg-[#EEEEEC]">
       {/* Left Sidebar - Pane 1 */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex overflow-hidden transition-all duration-300 ease-spring">
-          {/* Center Content - Pane 2 */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col overflow-hidden p-3 gap-3">
+        <div className="flex-1 flex overflow-hidden gap-3 transition-all duration-300 ease-spring">
+          {/* Center Content - Taxonomy columns card */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-xl shadow-sm">
             <TaxonomyHeader />
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden relative">
               <TaxonomyTree />
+              <ScanOverlay />
             </div>
           </div>
 
-          {/* Right Pane - Pane 3 (Detail or Review) */}
-          <RightPane />
+          {/* Right Pane - Detail card + Agent thinking card */}
+          <div className="w-[340px] shrink-0 flex flex-col gap-3">
+            <DetailPane />
+            <AgentScanCard />
+          </div>
         </div>
 
-        <BottomBar />
       </div>
 
-      <ConfirmationModal />
       <DemoConsole />
     </div>
   )
