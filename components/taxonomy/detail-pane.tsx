@@ -704,8 +704,11 @@ function getAllThemesFromTaxonomy(taxonomyData: { level1: any[] }): ThemeWithPat
 }
 
 export function DetailPane() {
-  const { getSelectedNode, isEditMode, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, initiateHighRiskReview, taxonomyData, buildNodePath, currentNavIds, creatingNode, cancelCreatingNode, commitCreatingNode } =
+  const { getSelectedNode, isEditMode, hasPendingReview, addDraftChange, draftChanges, selectedL1Id, selectedL2Id, selectedL3Id, initiateHighRiskReview, taxonomyData, buildNodePath, currentNavIds, creatingNode, cancelCreatingNode, commitCreatingNode } =
     useTaxonomy()
+
+  // When a review is pending, treat the pane as non-editable
+  const editBlocked = hasPendingReview
   const [themeSearch, setThemeSearch] = useState("")
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState("")
@@ -757,7 +760,7 @@ export function DetailPane() {
     }
 
     return (
-      <div className="w-[340px] h-full bg-background border-l border-border flex flex-col overflow-hidden transition-all duration-300 ease-spring">
+      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm flex flex-col overflow-hidden transition-all duration-300 ease-spring">
         {/* Header */}
         <div className="p-4 border-b border-border">
           <div className="mb-4">
@@ -846,7 +849,7 @@ export function DetailPane() {
 
   if (!selectedNode) {
     return (
-      <div className="w-[340px] h-full bg-background border-l border-border overflow-hidden transition-all duration-300 ease-spring">
+      <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 ease-spring">
         <EmptyState />
       </div>
     )
@@ -882,12 +885,12 @@ export function DetailPane() {
     operationType: TaxonomyOperationType,
     wisdomContext?: Partial<WisdomPromptContext>
   ) => {
-    if (!node) return
+    if (!node || editBlocked) return
     initiateHighRiskReview(node, level, operationType, wisdomContext)
   }
 
   const handleTitleEdit = () => {
-    if (isEditMode && !isNonEditable && selectedNode) {
+    if (isEditMode && !isNonEditable && !editBlocked && selectedNode) {
       setTitleValue(selectedNode.name)
       setEditingTitle(true)
     }
@@ -918,7 +921,7 @@ export function DetailPane() {
   }
 
   const handleDescriptionEdit = () => {
-    if (isEditMode && !isNonEditable && selectedNode) {
+    if (isEditMode && !isNonEditable && !editBlocked && selectedNode) {
       // Enable inline editing first - changes will be added to draft on blur
       setDescriptionValue(selectedNode.description || "")
       setEditingDescription(true)
@@ -1220,7 +1223,7 @@ export function DetailPane() {
   }
 
   return (
-    <div className="w-[340px] h-full bg-background border-l border-border flex flex-col overflow-hidden transition-all duration-300 ease-spring">
+    <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm flex flex-col overflow-hidden transition-all duration-300 ease-spring">
       {/* Header */}
       <div className="p-4 border-b border-border">
         {isEditMode && (
@@ -1248,7 +1251,8 @@ export function DetailPane() {
               <h2
                 className={cn(
                   "text-lg font-semibold text-foreground flex-1",
-                  isEditMode && !isNonEditable && "cursor-text hover:bg-muted/50 px-1 -mx-1 rounded",
+                  isEditMode && !isNonEditable && !editBlocked && "cursor-text hover:bg-muted/50 px-1 -mx-1 rounded",
+                  isEditMode && !isNonEditable && editBlocked && "px-1 -mx-1 opacity-50 cursor-not-allowed",
                   hasTitleChange && "border-b-2 border-dashed border-[#2D7A7A]/40 pb-0.5",
                 )}
                 onClick={handleTitleEdit}
@@ -1258,7 +1262,11 @@ export function DetailPane() {
               {isEditMode && !isNonEditable && (
                 <button
                   onClick={handleDeleteKeyword}
-                  className="p-1.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0"
+                  disabled={editBlocked}
+                  className={cn(
+                    "p-1.5 rounded text-destructive transition-colors shrink-0",
+                    editBlocked ? "opacity-50 cursor-not-allowed" : "hover:bg-destructive/10"
+                  )}
                   title="Delete keyword"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1292,7 +1300,8 @@ export function DetailPane() {
               <p
                 className={cn(
                   "text-sm text-muted-foreground",
-                  isEditMode && !isNonEditable && "cursor-text hover:bg-muted/50 px-1 -mx-1 rounded",
+                  isEditMode && !isNonEditable && !editBlocked && "cursor-text hover:bg-muted/50 px-1 -mx-1 rounded",
+                  isEditMode && !isNonEditable && editBlocked && "px-1 -mx-1 opacity-50 cursor-not-allowed",
                   hasDescriptionChange && "border-l-2 border-dashed border-[#2D7A7A]/40 pl-2",
                 )}
                 onClick={handleDescriptionEdit}
@@ -1331,7 +1340,7 @@ export function DetailPane() {
               key={theme.id}
               theme={theme}
               depth={0}
-              isEditMode={isEditMode}
+              isEditMode={isEditMode && !editBlocked}
               onThemeNameChange={handleSubThemeNameChange}
               onThemeCategoryChange={handleThemeCategoryChange}
               onThemeDelete={handleThemeDelete}
@@ -1349,7 +1358,7 @@ export function DetailPane() {
         )}
 
         {/* Add Theme button/form - available in edit mode */}
-        {isEditMode && !isNonEditable && (
+        {isEditMode && !isNonEditable && !editBlocked && (
           isCreatingTheme ? (
             <div className="mt-4 p-3 border border-dashed border-[#2D7A7A]/40 rounded-lg bg-[#2D7A7A]/5">
               {/* Theme Name */}

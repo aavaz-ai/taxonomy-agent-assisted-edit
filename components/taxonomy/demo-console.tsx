@@ -351,7 +351,7 @@ function BarRow({ label, pct }: { label: string; pct: number }) {
 }
 
 function SettingsTab() {
-  const { cardDisplayMode, setCardDisplayMode } = useTaxonomy()
+  const { cardDisplayMode, setCardDisplayMode, scanAnimMode, setScanAnimMode, addDraftChange } = useTaxonomy()
 
   return (
     <div className="space-y-5 font-mono">
@@ -370,7 +370,7 @@ function SettingsTab() {
           </div>
           <div className="flex items-center gap-2.5">
             <div className="w-1 h-4 rounded-full bg-gray-500 shrink-0" />
-            <span className="text-[11px] text-gray-300">Resolved (Dismissed / Addressed / Workaround)</span>
+            <span className="text-[11px] text-gray-300">Resolved (Discarded / Addressed / Workaround)</span>
           </div>
           <div className="flex items-center gap-2.5">
             <div className="w-1 h-4 rounded-full bg-[#2D7A7A] shrink-0 animate-pulse" />
@@ -423,7 +423,94 @@ function SettingsTab() {
               <div className="text-[10px] text-gray-500">Minimal banner + right sidebar review</div>
             </div>
           </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="consoleDisplayMode"
+              checked={cardDisplayMode === "topbar"}
+              onChange={() => setCardDisplayMode("topbar")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Top bar</div>
+              <div className="text-[10px] text-gray-500">Badge in header — explicit opt-in review</div>
+            </div>
+          </label>
         </div>
+      </div>
+
+      {/* Scan Animation */}
+      <div>
+        <div className="text-gray-400 font-semibold text-[11px] mb-2">Scan Animation</div>
+        <div className="text-gray-500 mb-1.5">{"━".repeat(33)}</div>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="scanAnimMode"
+              checked={scanAnimMode === "aurora"}
+              onChange={() => setScanAnimMode("aurora")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Aurora</div>
+              <div className="text-[10px] text-gray-500">Organic color field with simplex noise</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="scanAnimMode"
+              checked={scanAnimMode === "depthScan"}
+              onChange={() => setScanAnimMode("depthScan")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Depth Scan</div>
+              <div className="text-[10px] text-gray-500">Blade Runner-style contour scanning</div>
+            </div>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="radio"
+              name="scanAnimMode"
+              checked={scanAnimMode === "dithering"}
+              onChange={() => setScanAnimMode("dithering")}
+              className="mt-0.5 accent-emerald-400"
+            />
+            <div>
+              <div className="text-[11px] text-gray-300">Dithering</div>
+              <div className="text-[10px] text-gray-500">Paper simplex dithering with teal wash</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Mock States */}
+      <div>
+        <div className="text-gray-400 font-semibold text-[11px] mb-2">Mock States</div>
+        <div className="text-gray-500 mb-1.5">{"━".repeat(33)}</div>
+        <button
+          onClick={() => {
+            addDraftChange({
+              nodeId: `mock-${Date.now()}`,
+              nodeName: "Recording Failed to Start",
+              nodeLevel: "Theme",
+              field: "name",
+              oldValue: "Recording Failed to Start",
+              newValue: "Easy to Find Recordings",
+              operationDescription: "Rename and move sub-theme across parents",
+              resolution: 'workaround-accepted',
+              workaroundSteps: [
+                'Delete "Recording Failed to Start" from Issues with Recording Features',
+                'Create "Easy to Find Recordings" under Recording Feature Praise',
+              ],
+            })
+          }}
+          className="text-[11px] text-amber-300 hover:text-amber-200 font-mono underline underline-offset-2 cursor-pointer"
+        >
+          Inject workaround rename
+        </button>
       </div>
     </div>
   )

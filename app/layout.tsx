@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Agentation } from "agentation"
+import { DialRoot } from "dialkit"
+import "dialkit/styles.css"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -37,6 +39,7 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         {children}
         <Analytics />
+        {process.env.NODE_ENV === "development" && <DialRoot position="bottom-left" />}
         {process.env.NODE_ENV === "development" && <Agentation endpoint="http://localhost:4747" />}
       </body>
     </html>

@@ -44,7 +44,7 @@ export function TaxonomyColumn({
   isEditMode = false,
   draftChanges = [],
 }: TaxonomyColumnProps) {
-  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, startCreatingNode, cancelCreatingNode } = useTaxonomy()
+  const { sortL1, sortL2, sortL3, setSortL1, setSortL2, setSortL3, startCreatingNode, cancelCreatingNode, hasPendingReview } = useTaxonomy()
 
   const currentSort = level === 1 ? sortL1 : level === 2 ? sortL2 : sortL3
   const setSort = level === 1 ? setSortL1 : level === 2 ? setSortL2 : setSortL3
@@ -184,8 +184,12 @@ export function TaxonomyColumn({
         {/* Add keyword button in edit mode */}
         {isEditMode && (
           <div
-            className="flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2 cursor-pointer hover:bg-muted/50"
+            className={cn(
+              "flex items-center justify-center px-4 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg mx-4 mt-2",
+              hasPendingReview ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"
+            )}
             onClick={() => {
+              if (hasPendingReview) return
               const nodeLevel = `L${level}` as "L1" | "L2" | "L3"
               startCreatingNode(nodeLevel)
             }}

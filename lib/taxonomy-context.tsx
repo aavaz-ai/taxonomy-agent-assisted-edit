@@ -64,7 +64,22 @@ export interface HighRiskReviewState {
 }
 
 export type SortType = "name-asc" | "name-desc" | "count-asc" | "count-desc"
-export type CardDisplayMode = "bars" | "chips" | "sidebar"
+export type CardDisplayMode = "bars" | "chips" | "sidebar" | "topbar"
+export type ScanAnimMode = "aurora" | "depthScan" | "dithering"
+
+export interface ScanMessage {
+  id: string
+  text: string
+  timestamp: Date
+  status: 'active' | 'done'
+}
+
+export interface ScanState {
+  status: 'idle' | 'scanning' | 'complete'
+  progress: number
+  messages: ScanMessage[]
+  activeReviewId: string | null
+}
 
 interface TaxonomyContextType {
   // Data
@@ -81,6 +96,9 @@ interface TaxonomyContextType {
   // Edit mode
   isEditMode: boolean
   setIsEditMode: (mode: boolean) => void
+
+  // Review blocking — true when a review is pending or scan is running
+  hasPendingReview: boolean
 
   // Draft changes
   draftChanges: DraftChange[]
@@ -113,19 +131,6 @@ interface TaxonomyContextType {
   rejectHighRiskReview: (reviewId: string) => void
   acceptWorkaround: (reviewId: string, destinationName?: string) => void
 
-  // New: Change selection for split panel
-  selectedChangeId: string | null
-  setSelectedChangeId: (id: string | null) => void
-
-  // New: Analysis stats
-  analysisStats: { pass: number; warn: number; fail: number; pending: number }
-
-  isBottomBarExpanded: boolean
-  setIsBottomBarExpanded: (expanded: boolean) => void
-
-  isConfirmModalOpen: boolean
-  setIsConfirmModalOpen: (open: boolean) => void
-
   isProcessing: boolean
   processingEstimate: string
 
@@ -150,8 +155,15 @@ interface TaxonomyContextType {
   cardDisplayMode: CardDisplayMode
   setCardDisplayMode: (mode: CardDisplayMode) => void
 
+  scanAnimMode: ScanAnimMode
+  setScanAnimMode: (mode: ScanAnimMode) => void
+
   isReviewPaneOpen: boolean
   setIsReviewPaneOpen: (open: boolean) => void
+
+  // Scan animation state
+  scanState: ScanState
+  resetScan: () => void
 
   // Node creation flow
   creatingNode: { level: "L1" | "L2" | "L3" } | null
@@ -228,9 +240,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   // Draft changes
   const [draftChanges, setDraftChanges] = useState<DraftChange[]>([])
 
-  const [isBottomBarExpanded, setIsBottomBarExpanded] = useState(false)
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
-
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingEstimate, setProcessingEstimate] = useState("2-3 hours")
 
@@ -247,7 +256,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem("taxonomy-card-display-mode")
-    if (stored === "bars" || stored === "chips" || stored === "sidebar") {
+    if (stored === "bars" || stored === "chips" || stored === "sidebar" || stored === "topbar") {
       setCardDisplayModeInternal(stored)
     }
   }, [])
@@ -255,35 +264,190 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const setCardDisplayMode = useCallback((mode: CardDisplayMode) => {
     setCardDisplayModeInternal(mode)
     localStorage.setItem("taxonomy-card-display-mode", mode)
-    if (mode === "sidebar") {
+    if (mode === "sidebar" || mode === "topbar") {
       setIsReviewPaneOpen(false)
     }
+  }, [])
+
+  // Scan animation mode — persisted to localStorage
+  const [scanAnimMode, setScanAnimModeInternal] = useState<ScanAnimMode>("aurora")
+
+  useEffect(() => {
+    const stored = localStorage.getItem("taxonomy-scan-anim-mode")
+    if (stored === "aurora" || stored === "depthScan" || stored === "dithering") {
+      setScanAnimModeInternal(stored)
+    }
+  }, [])
+
+  const setScanAnimMode = useCallback((mode: ScanAnimMode) => {
+    setScanAnimModeInternal(mode)
+    localStorage.setItem("taxonomy-scan-anim-mode", mode)
   }, [])
 
   // High-risk review state — supports multiple concurrent reviews
   const [highRiskReviews, setHighRiskReviews] = useState<HighRiskReviewState[]>([])
 
-  // Selected change for split panel
-  const [selectedChangeId, setSelectedChangeId] = useState<string | null>(null)
+  // Scan animation state
+  const [scanState, setScanState] = useState<ScanState>({
+    status: 'idle',
+    progress: 0,
+    messages: [],
+    activeReviewId: null,
+  })
+
+  // Message sequences per operation type category
+  const scanMessageSequences: Record<string, string[]> = useMemo(() => ({
+    default: [
+      "Analyzing taxonomy structure...",
+      "Checking for conflicts with existing keywords...",
+      "Scanning record volumes...",
+      "Evaluating impact on downstream themes...",
+      "Generating recommendation...",
+    ],
+    rename: [
+      "Checking keyword usage across records...",
+      "Scanning for naming conflicts...",
+      "Evaluating semantic similarity with siblings...",
+      "Analyzing impact on theme mappings...",
+      "Generating recommendation...",
+    ],
+    delete: [
+      "Scanning records mapped to this keyword...",
+      "Checking for orphaned child nodes...",
+      "Evaluating redistribution options...",
+      "Analyzing impact on taxonomy coverage...",
+      "Generating recommendation...",
+    ],
+    merge: [
+      "Comparing keyword record distributions...",
+      "Checking theme overlap between sources...",
+      "Evaluating merge destination compatibility...",
+      "Scanning for duplicate themes post-merge...",
+      "Generating recommendation...",
+    ],
+    create: [
+      "Checking for existing similar keywords...",
+      "Analyzing proposed placement in hierarchy...",
+      "Evaluating naming conventions...",
+      "Scanning for potential record coverage...",
+      "Generating recommendation...",
+    ],
+  }), [])
+
+  const getMessagesForOperation = useCallback((opType: string): string[] => {
+    if (opType.includes('rename')) return scanMessageSequences.rename
+    if (opType.includes('delete')) return scanMessageSequences.delete
+    if (opType.includes('merge')) return scanMessageSequences.merge
+    if (opType.includes('create')) return scanMessageSequences.create
+    return scanMessageSequences.default
+  }, [scanMessageSequences])
+
+  // Progress timer: increment from 0 to 90 while scanning
+  useEffect(() => {
+    if (scanState.status !== 'scanning') return
+    const interval = setInterval(() => {
+      setScanState(prev => {
+        if (prev.status !== 'scanning') return prev
+        const next = Math.min(prev.progress + 2, 90)
+        return { ...prev, progress: next }
+      })
+    }, 100)
+    return () => clearInterval(interval)
+  }, [scanState.status])
+
+  // Message cycling: advance messages every ~800ms while scanning
+  useEffect(() => {
+    if (scanState.status !== 'scanning' || !scanState.activeReviewId) return
+
+    const review = highRiskReviews.find(r => r.id === scanState.activeReviewId)
+    const messages = review ? getMessagesForOperation(review.operationType) : scanMessageSequences.default
+    let msgIndex = 0
+
+    // Add first message immediately
+    setScanState(prev => ({
+      ...prev,
+      messages: [{ id: `msg-0`, text: messages[0], timestamp: new Date(), status: 'active' }],
+    }))
+
+    const interval = setInterval(() => {
+      msgIndex++
+      if (msgIndex >= messages.length) {
+        clearInterval(interval)
+        return
+      }
+      setScanState(prev => {
+        if (prev.status !== 'scanning') return prev
+        const updated = prev.messages.map(m => ({ ...m, status: 'done' as const }))
+        return {
+          ...prev,
+          messages: [
+            ...updated,
+            { id: `msg-${msgIndex}`, text: messages[msgIndex], timestamp: new Date(), status: 'active' },
+          ],
+        }
+      })
+    }, 800)
+
+    return () => clearInterval(interval)
+  }, [scanState.status, scanState.activeReviewId, highRiskReviews, getMessagesForOperation, scanMessageSequences.default])
+
+  // Start scan when a new review is added
+  const startScan = useCallback((reviewId: string) => {
+    setScanState({
+      status: 'scanning',
+      progress: 0,
+      messages: [],
+      activeReviewId: reviewId,
+    })
+  }, [])
+
+  // Complete scan — card persists in result state until user acts
+  const completeScan = useCallback(() => {
+    setScanState(prev => ({
+      ...prev,
+      status: 'complete',
+      progress: 100,
+      messages: prev.messages.map(m => ({ ...m, status: 'done' as const })),
+    }))
+  }, [])
+
+  // Reset scan to idle (called after user accepts/rejects/dismisses)
+  const resetScan = useCallback(() => {
+    setScanState({ status: 'idle', progress: 0, messages: [], activeReviewId: null })
+  }, [])
+
+  // Watch for analysis completion on the active review
+  useEffect(() => {
+    if (scanState.status !== 'scanning' || !scanState.activeReviewId) return
+    const review = highRiskReviews.find(r => r.id === scanState.activeReviewId)
+    if (!review) {
+      // Review was removed (accepted/rejected) — end scan
+      completeScan()
+      return
+    }
+    if (review.analysis.status !== 'analyzing') {
+      completeScan()
+    }
+  }, [scanState.status, scanState.activeReviewId, highRiskReviews, completeScan])
 
   // When L1 changes, reset L2 and L3
   const setSelectedL1Id = useCallback((id: string | null) => {
     setSelectedL1IdInternal(id)
     setSelectedL2IdInternal(null)
     setSelectedL3IdInternal(null)
-    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+    if (cardDisplayMode === "sidebar" || cardDisplayMode === "topbar") setIsReviewPaneOpen(false)
   }, [cardDisplayMode])
 
   // When L2 changes, reset L3
   const setSelectedL2Id = useCallback((id: string | null) => {
     setSelectedL2IdInternal(id)
     setSelectedL3IdInternal(null)
-    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+    if (cardDisplayMode === "sidebar" || cardDisplayMode === "topbar") setIsReviewPaneOpen(false)
   }, [cardDisplayMode])
 
   const setSelectedL3Id = useCallback((id: string | null) => {
     setSelectedL3IdInternal(id)
-    if (cardDisplayMode === "sidebar") setIsReviewPaneOpen(false)
+    if (cardDisplayMode === "sidebar" || cardDisplayMode === "topbar") setIsReviewPaneOpen(false)
   }, [cardDisplayMode])
 
   const getL2Nodes = useCallback((): TaxonomyNode[] => {
@@ -427,8 +591,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
 
   const discardAllChanges = useCallback(() => {
     setDraftChanges([])
-    setIsBottomBarExpanded(false)
-    setSelectedChangeId(null)
     setHighRiskReviews([])
     setCreatingNode(null)
   }, [])
@@ -437,9 +599,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     console.log("Applying changes:", draftChanges)
     setDraftChanges([])
     setIsEditMode(false)
-    setIsBottomBarExpanded(false)
-    setIsConfirmModalOpen(false)
-    setSelectedChangeId(null)
     setHighRiskReviews([])
     setCreatingNode(null)
     setIsProcessing(true)
@@ -492,6 +651,20 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
           structural.crossThemeSubThemeNames = crossThemeSubThemeNames
           structural.crossThemeSubThemeParents = crossThemeSubThemeParents
         }
+      } else if (level === "L1") {
+        // L1 siblings = all other L1 node names
+        structural.siblingThemes = taxonomyData.level1
+          .filter(n => n.id !== node.id)
+          .map(n => n.name)
+        structural.themeVolume = node.count
+        structural.subThemeNames = (node.children || []).map(n => n.name)
+      } else if (level === "L2" && l1Node) {
+        // L2 siblings = other L2 nodes under the same L1
+        structural.siblingThemes = (l1Node.children || [])
+          .filter(n => n.id !== node.id)
+          .map(n => n.name)
+        structural.themeVolume = node.count
+        structural.subThemeNames = (node.children || []).map(n => n.name)
       } else if (level === "L3") {
         structural.l3Name = node.name
       }
@@ -505,6 +678,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     [taxonomyData, selectedL1Id, selectedL2Id, selectedL3Id]
   )
 
+  // Derived: block edits while a review is pending or scan is running
+  const hasPendingReview = highRiskReviews.length > 0 || scanState.status === 'scanning'
+
   // ALL edits go through agent review panel — no silent background path
   // addDraftChangeWithAnalysis now routes through the same review flow as high-risk
   const addDraftChangeWithAnalysis = useCallback(
@@ -514,6 +690,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       operationType: TaxonomyOperationType,
       wisdomContext?: Partial<WisdomPromptContext>
     ) => {
+      // Guard: block concurrent reviews
+      if (highRiskReviews.length > 0) return
+
       // Route everything through the review panel
       const fullWisdomContext = buildWisdomContext(node, level, wisdomContext)
       const agentCtx: AgentContext = {
@@ -540,13 +719,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       }
 
       setHighRiskReviews((prev) => [...prev, newReview])
+      startScan(reviewId)
 
-      // Auto-expand: review pane in sidebar mode, bottom bar otherwise
-      if (cardDisplayMode === "sidebar") {
-        setIsReviewPaneOpen(true)
-      } else {
-        setIsBottomBarExpanded(true)
-      }
 
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
@@ -561,7 +735,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         )
       })
     },
-    [buildWisdomContext, cardDisplayMode]
+    [buildWisdomContext, startScan, highRiskReviews]
   )
 
   // High-risk: block until user accepts or rejects (same flow, kept for API compatibility)
@@ -572,6 +746,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       operationType: TaxonomyOperationType,
       wisdomContext?: Partial<WisdomPromptContext>
     ) => {
+      // Guard: block concurrent reviews
+      if (highRiskReviews.length > 0) return
+
       const fullWisdomContext = buildWisdomContext(node, level, wisdomContext)
       const agentCtx: AgentContext = {
         selectedNode: node,
@@ -597,13 +774,8 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       }
 
       setHighRiskReviews((prev) => [...prev, newReview])
+      startScan(reviewId)
 
-      // Auto-expand: review pane in sidebar mode, bottom bar otherwise
-      if (cardDisplayMode === "sidebar") {
-        setIsReviewPaneOpen(true)
-      } else {
-        setIsBottomBarExpanded(true)
-      }
 
       // Fire Wisdom analysis
       queryWisdom(operationType, fullWisdomContext).then((wisdomResponse) => {
@@ -618,7 +790,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         )
       })
     },
-    [buildWisdomContext, cardDisplayMode]
+    [buildWisdomContext, startScan, highRiskReviews]
   )
 
   const commitCreatingNode = useCallback(
@@ -769,26 +941,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     setHighRiskReviews((prev) => prev.filter((r) => r.id !== reviewId))
   }, [highRiskReviews, addDraftChange, buildNodePath, currentNavIds])
 
-  // Compute analysis stats
-  const analysisStats = useMemo(() => {
-    const stats = { pass: 0, warn: 0, fail: 0, pending: 0 }
-    // Count unique analyses (group by operation since multi-diff operations share the same analysis)
-    const counted = new Set<string>()
-
-    for (const change of draftChanges) {
-      const key = change.operationDescription || change.id
-      if (counted.has(key)) continue
-      counted.add(key)
-
-      const status = change.agentAnalysis?.status
-      if (status === "pass") stats.pass++
-      else if (status === "warn") stats.warn++
-      else if (status === "fail") stats.fail++
-      else stats.pending++
-    }
-    return stats
-  }, [draftChanges])
-
   return (
     <TaxonomyContext.Provider
       value={{
@@ -801,6 +953,7 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSelectedL3Id,
         isEditMode,
         setIsEditMode,
+        hasPendingReview,
         draftChanges,
         addDraftChange,
         removeDraftChange,
@@ -815,13 +968,6 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         acceptHighRiskReview,
         rejectHighRiskReview,
         acceptWorkaround,
-        selectedChangeId,
-        setSelectedChangeId,
-        analysisStats,
-        isBottomBarExpanded,
-        setIsBottomBarExpanded,
-        isConfirmModalOpen,
-        setIsConfirmModalOpen,
         isProcessing,
         processingEstimate,
         getSelectedNode,
@@ -839,8 +985,12 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
         setSortL3,
         cardDisplayMode,
         setCardDisplayMode,
+        scanAnimMode,
+        setScanAnimMode,
         isReviewPaneOpen,
         setIsReviewPaneOpen,
+        scanState,
+        resetScan,
         creatingNode,
         startCreatingNode,
         cancelCreatingNode,

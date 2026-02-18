@@ -172,3 +172,13 @@
   75% { transform: translateX(-2px); }
   90% { transform: translateX(2px); }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Push DialKit above Next.js dev logo */
+.dialkit-panel[data-position="bottom-left"] {
+  bottom: 56px !important;
+}
